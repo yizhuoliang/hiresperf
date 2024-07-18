@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 int main() {
     int ret, fd;
