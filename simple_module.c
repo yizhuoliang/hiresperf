@@ -32,25 +32,29 @@ static struct file_operations fops =
 static int __init simple_init(void) {
     printk(KERN_INFO "SimpleChar: Initializing the SimpleChar LKM\n");
 
-    majorNumber = register_chrdev(281, DEVICE_NAME, &fops);
-    if (majorNumber < 0) {
+    // Try to explicitly allocate the major number 281
+    dev_t dev_num = MKDEV(281, 0);
+    int ret = register_chrdev_region(dev_num, 1, DEVICE_NAME);
+    if (ret < 0) {
         printk(KERN_ALERT "SimpleChar failed to register a major number\n");
-        return majorNumber;
+        return ret;
     }
+
+    majorNumber = MAJOR(dev_num);
     printk(KERN_INFO "SimpleChar: registered correctly with major number %d\n", majorNumber);
 
     simpleClass = class_create(THIS_MODULE, CLASS_NAME);
     if (IS_ERR(simpleClass)) {
-        unregister_chrdev(majorNumber, DEVICE_NAME);
+        unregister_chrdev_region(dev_num, 1);
         printk(KERN_ALERT "Failed to register device class\n");
         return PTR_ERR(simpleClass);
     }
     printk(KERN_INFO "SimpleChar: device class registered correctly\n");
 
-    simpleDevice = device_create(simpleClass, NULL, MKDEV(majorNumber, 0), NULL, DEVICE_NAME);
+    simpleDevice = device_create(simpleClass, NULL, dev_num, NULL, DEVICE_NAME);
     if (IS_ERR(simpleDevice)) {
         class_destroy(simpleClass);
-        unregister_chrdev(majorNumber, DEVICE_NAME);
+        unregister_chrdev_region(dev_num, 1);
         printk(KERN_ALERT "Failed to create the device\n");
         return PTR_ERR(simpleDevice);
     }
@@ -64,7 +68,7 @@ static void __exit simple_exit(void) {
     device_destroy(simpleClass, MKDEV(majorNumber, 0));
     class_unregister(simpleClass);
     class_destroy(simpleClass);
-    unregister_chrdev(majorNumber, DEVICE_NAME);
+    unregister_chrdev_region(MKDEV(majorNumber, 0), 1);
     printk(KERN_INFO "SimpleChar: Goodbye from the LKM!\n");
 }
 
