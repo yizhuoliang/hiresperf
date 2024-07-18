@@ -1,4 +1,3 @@
-// simple_module.c
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -14,7 +13,7 @@ MODULE_AUTHOR("Your Name");
 MODULE_DESCRIPTION("A simple Linux char driver");
 
 static int majorNumber;
-static char message[256] = {0};
+static char message[256] = "Hello from the kernel!";
 static short size_of_message;
 static struct class* simpleClass = NULL;
 static struct device* simpleDevice = NULL;
@@ -56,6 +55,8 @@ static int __init simple_init(void) {
         return PTR_ERR(simpleDevice);
     }
     printk(KERN_INFO "SimpleChar: device class created correctly\n");
+
+    size_of_message = strlen(message);  // Initialize the size_of_message
     return 0;
 }
 
@@ -74,14 +75,16 @@ static int dev_open(struct inode *inodep, struct file *filep) {
 
 static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset) {
     int error_count = 0;
+
+    // Send the message to the user
     error_count = copy_to_user(buffer, message, size_of_message);
 
-    if (error_count==0) {
+    if (error_count == 0) {
         printk(KERN_INFO "SimpleChar: Sent %d characters to the user\n", size_of_message);
-        return (size_of_message=0);
+        return (size_of_message=0);  // Clear the position to the start and return 0 for EOF
     } else {
-        printk(KERN_INFO "SimpleChar: Failed to send %d characters to the user\n", error_count);
-        return -EFAULT;
+        printk(KERN_ALERT "SimpleChar: Failed to send %d characters to the user\n", error_count);
+        return -EFAULT;  // Failed -- return a bad address message
     }
 }
 
