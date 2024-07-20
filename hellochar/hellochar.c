@@ -87,7 +87,7 @@ static int __init hellochar_init(void) {
         return PTR_ERR(helloDevice);
     }
 
-    unsigned long long res = (unsigned long long) ksched_init_pmc(NULL);
+    unsigned long long res = (unsigned long long) ksched_measure_pmc(NULL);
     printk(KERN_INFO "HelloCahr: %llu", res);
 
     printk(KERN_INFO "HelloChar: device class created correctly\n");
