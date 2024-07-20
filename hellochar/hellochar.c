@@ -87,8 +87,7 @@ static int __init hellochar_init(void) {
         return PTR_ERR(helloDevice);
     }
 
-    unsigned long long res = (unsigned long long) ksched_measure_pmc(NULL);
-    printk(KERN_INFO "HelloCahr: %llu", res);
+    ksched_init_pmc(NULL);
 
     printk(KERN_INFO "HelloChar: device class created correctly\n");
     return 0;
@@ -119,7 +118,8 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     }
 
     error_count = copy_to_user(buffer, message, message_len);
-    ksched_measure_pmc(PMC_LLC_MISSES);
+    unsigned long long res = (unsigned long long) ksched_measure_pmc(PMC_LLC_MISSES);
+    printk(KERN_INFO "HelloCahr: %llu", res);
 
     if (error_count == 0) {
         printk(KERN_INFO "HelloChar: Sent %d characters to the user\n", message_len);
