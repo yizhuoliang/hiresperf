@@ -29,6 +29,9 @@ static struct file_operations fops =
    .read = dev_read,
 };
 
+#define CORE_PERF_GLOBAL_CTRL_ENABLE_PMC_0 (0x1)
+#define CORE_PERF_GLOBAL_CTRL_ENABLE_PMC_1 (0x2)
+
 static void __init ksched_init_pmc(void *arg)
 {
 	wrmsrl(MSR_CORE_PERF_FIXED_CTR_CTRL, 0x333);
