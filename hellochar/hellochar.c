@@ -6,6 +6,8 @@
 #include <linux/module.h>
 #include <linux/uaccess.h>  // for copy_to_user
 
+#include "pmc.h"
+
 #define DEVICE_NAME "hellochar"
 #define CLASS_NAME "hello"
 
@@ -26,6 +28,24 @@ static struct file_operations fops =
    .open = dev_open,
    .read = dev_read,
 };
+
+static void __init ksched_init_pmc(void *arg)
+{
+	wrmsrl(MSR_CORE_PERF_FIXED_CTR_CTRL, 0x333);
+	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL,
+	       CORE_PERF_GLOBAL_CTRL_ENABLE_PMC_0 |
+	       CORE_PERF_GLOBAL_CTRL_ENABLE_PMC_1 |
+	       (1UL << 32) | (1UL << 33) | (1UL << 34));
+}
+
+static u64 ksched_measure_pmc(u64 sel)
+{
+	u64 val;
+    wrmsrl(MSR_P6_EVNTSEL0, sel);
+	rdmsrl(MSR_P6_PERFCTR0, val);
+
+	return val;
+}
 
 static int __init hellochar_init(void) {
     printk(KERN_INFO "HelloChar: Initializing the HelloChar LKM\n");
@@ -63,6 +83,10 @@ static int __init hellochar_init(void) {
         printk(KERN_ALERT "Failed to create the device\n");
         return PTR_ERR(helloDevice);
     }
+
+    unsigned long long res = (unsigned long long) ksched_init_pmc(NULL);
+    printk(KERN_INFO "HelloCahr: %llu", res);
+
     printk(KERN_INFO "HelloChar: device class created correctly\n");
     return 0;
 }
@@ -92,6 +116,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     }
 
     error_count = copy_to_user(buffer, message, message_len);
+    ksched_measure_pmc(PMC_LLC_MISSES);
 
     if (error_count == 0) {
         printk(KERN_INFO "HelloChar: Sent %d characters to the user\n", message_len);
