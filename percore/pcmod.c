@@ -15,7 +15,8 @@ static struct task_struct *printer_thread;
 // Function for each per-CPU thread
 static int per_cpu_func(void *data) {
     while (!kthread_should_stop()) {
-        u64 timestamp = local_clock();
+        u64 timestamp;
+        asm volatile("rdtsc" : "=A"(timestamp));
         enqueue(this_cpu_ptr(&cpu_buffers), timestamp);
         usleep_range(POLL_INTERVAL, POLL_INTERVAL + 100);
     }
