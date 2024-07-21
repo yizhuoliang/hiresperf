@@ -31,7 +31,7 @@ static int printer_func(void *data) {
             printk(KERN_INFO "CPU %d: ", cpu);
             print_and_clear(per_cpu_ptr(&cpu_buffers, cpu));
         }
-        usleep(POLL_INTERVAL * 10);  // Sleep 10 times the poll interval
+        usleep_range(POLL_INTERVAL * 10, POLL_INTERVAL * 10 + 1000);  // Sleep 10 times the poll interval
     }
     return 0;
 }
