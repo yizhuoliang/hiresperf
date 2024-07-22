@@ -118,7 +118,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     }
 
     error_count = copy_to_user(buffer, message, message_len);
-    unsigned long long res = (unsigned long long) ksched_measure_pmc(PMC_SEL_SW_PREFETCH_ANY);
+    unsigned long long res = (unsigned long long) ksched_measure_pmc(PMC_SEL_SW_PREFETCH_ANY_SKYLAKE);
     printk(KERN_INFO "HelloCahr: %llu", res);
 
     if (error_count == 0) {
