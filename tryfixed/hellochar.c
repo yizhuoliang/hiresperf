@@ -63,7 +63,7 @@ static u64 measure_pmc_fixed_1()
 {
     u64 val;
     rdmsrl(MSR_CORE_PERF_FIXED_CTR1, val);
-    retrn val;
+    return val;
 }
 
 static int __init hellochar_init(void) {
