@@ -50,6 +50,15 @@ static u64 ksched_measure_pmc(u64 sel)
 	return val;
 }
 
+static u64 ksched_measure_pmc1(u64 sel)
+{
+	u64 val;
+    wrmsrl(MSR_P6_EVNTSEL1, sel);
+	rdmsrl(MSR_P6_PERFCTR1, val);
+
+	return val;
+}
+
 static int __init hellochar_init(void) {
     printk(KERN_INFO "HelloChar: Initializing the HelloChar LKM\n");
 
@@ -118,8 +127,10 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     }
 
     error_count = copy_to_user(buffer, message, message_len);
-    unsigned long long res = (unsigned long long) ksched_measure_pmc(PMC_LLC_MISSES);
-    printk(KERN_INFO "HelloCahr: %llu", res);
+    unsigned long long res_llc = (unsigned long long) ksched_measure_pmc(PMC_LLC_MISSES);
+    unsigned long long res_prf = (unsigned long long) ksched_measure_pmc1(PMC_SW_PREFETCH_ANY_ESEL);
+
+    printk(KERN_INFO "HelloCahr: LLC Miss: %llu, Prefetch: %llu", res_llc, res_prf);
 
     if (error_count == 0) {
         printk(KERN_INFO "HelloChar: Sent %d characters to the user\n", message_len);
