@@ -59,7 +59,7 @@ static u64 ksched_measure_pmc1(u64 sel)
 	return val;
 }
 
-static u64 measure_pmc_fixed_1()
+static u64 measure_pmc_fixed_1(void)
 {
     u64 val;
     rdmsrl(MSR_CORE_PERF_FIXED_CTR1, val);
