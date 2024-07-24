@@ -41,6 +41,13 @@ static void __init ksched_init_pmc(void *arg)
 	       (1UL << 32) | (1UL << 33) | (1UL << 34));
 }
 
+static void __init ksched_stop_pmc(void *arg)
+{   
+    // Zero all the control MSRs to stop counters
+    wrmsrl(MSR_CORE_PERF_FIXED_CTR_CTRL, 0UL);
+    wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL, 0UL);
+}
+
 static u64 ksched_measure_pmc(u64 sel)
 {
 	u64 val;
@@ -115,6 +122,7 @@ static void __exit hellochar_exit(void) {
     class_destroy(helloClass);
     cdev_del(&helloCDev);
     unregister_chrdev_region(MKDEV(majorNumber, 0), 1);
+    ksched_stop_pmc(NULL);
     printk(KERN_INFO "HelloChar: Goodbye from the LKM!\n");
 }
 
