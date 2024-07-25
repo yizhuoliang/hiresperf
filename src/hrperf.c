@@ -81,7 +81,7 @@ static void __exit hrperf_exit(void) {
     for_each_possible_cpu(cpu) {
         kthread_stop(per_cpu(per_cpu_thread, cpu));
     }
-    kthread_stop(printer_thread);
+    kthread_stop(logger_thread);
 }
 
 module_init(hrperf_init);
