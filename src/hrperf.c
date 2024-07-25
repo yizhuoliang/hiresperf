@@ -4,6 +4,7 @@
 #include <linux/percpu.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <linux/delay.h>
 
 #include "buffer.h"
 #include "config.h"
