@@ -18,21 +18,21 @@ static struct task_struct *logger_thread;
 static int hrperf_per_cpu_poller(void *arg) {
 
     // enable the counters
-    wrmsr(MSR_IA32_FIXED_CTR_CTRL, 0x030); // fixed counter 1 for cpu unhalt
-    wrmsr(MSR_IA32_GLOBAL_CTRL, 1UL | (1UL << 1)  | (1UL << 33)); // arch 0,1, fixed 1
+    wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0x030); // fixed counter 1 for cpu unhalt
+    wrmsrl(MSR_IA32_GLOBAL_CTRL, 1UL | (1UL << 1)  | (1UL << 33)); // arch 0,1, fixed 1
     
     // make event selections
-    wrmsr(MSR_IA32_PERFEVTSEL0, PMC_LLC_MISSES_FINAL);
-    wrmsr(MSR_IA32_PERFEVTSEL1, PMC_SW_PREFETCH_ANY_SKYLAKE_FINAL)
+    wrmsrl(MSR_IA32_PERFEVTSEL0, PMC_LLC_MISSES_FINAL);
+    wrmsrl(MSR_IA32_PERFEVTSEL1, PMC_SW_PREFETCH_ANY_SKYLAKE_FINAL);
 
     HrperfTick tick;
 
     // start polling
     while (!kthread_should_stop()) {
         asm volatile("rdtsc" : "=A"(tick.tsc));
-        rdmsr(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
-        rdmsr(MSR_IA32_PMC0, tick.llc_misses);
-        rdmsr(MSR_IA32_PMC1, tick.sw_prefetch);
+        rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
+        rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
+        rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
         
         enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
         usleep_range(HRP_POLL_INTERVAL_US, HRP_POLL_INTERVAL_US + 100);
