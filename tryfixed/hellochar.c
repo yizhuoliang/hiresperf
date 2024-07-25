@@ -7,6 +7,7 @@
 #include <linux/uaccess.h>  // for copy_to_user
 
 #include "pmc.h"
+#include "intel-msr.h"
 
 #define DEVICE_NAME "hellochar"
 #define CLASS_NAME "hello"
@@ -29,30 +30,27 @@ static struct file_operations fops =
    .read = dev_read,
 };
 
-#define CORE_PERF_GLOBAL_CTRL_ENABLE_PMC_0 (0UL)
-#define CORE_PERF_GLOBAL_CTRL_ENABLE_PMC_1 (1UL)
-
 static void __init ksched_init_pmc(void *arg)
 {
-	wrmsrl(MSR_CORE_PERF_FIXED_CTR_CTRL, 0x333);
-	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL,
-	       CORE_PERF_GLOBAL_CTRL_ENABLE_PMC_0 |
-	       CORE_PERF_GLOBAL_CTRL_ENABLE_PMC_1 |
+	wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0x030);
+	wrmsrl(MSR_IA32_GLOBAL_CTRL,
+	       (0UL) |
+	       (1UL) |
 	       (1UL << 32) | (1UL << 33) | (1UL << 34));
 }
 
 static void __init ksched_stop_pmc(void *arg)
 {   
     // Zero all the control MSRs to stop counters
-    wrmsrl(MSR_CORE_PERF_FIXED_CTR_CTRL, 0UL);
-    wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL, 0UL);
+    wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0UL);
+    wrmsrl(MSR_IA32_GLOBAL_CTRL, 0UL);
 }
 
 static u64 ksched_measure_pmc(u64 sel)
 {
 	u64 val;
-    wrmsrl(MSR_P6_EVNTSEL0, sel);
-	rdmsrl(MSR_P6_PERFCTR0, val);
+    wrmsrl(MSR_IA32_PERFEVTSEL0, sel);
+	rdmsrl(MSR_IA32_PMC0, val);
 
 	return val;
 }
@@ -60,8 +58,8 @@ static u64 ksched_measure_pmc(u64 sel)
 static u64 ksched_measure_pmc1(u64 sel)
 {
 	u64 val;
-    wrmsrl(MSR_P6_EVNTSEL1, sel);
-	rdmsrl(MSR_P6_PERFCTR1, val);
+    wrmsrl(MSR_IA32_PERFEVTSEL1, sel);
+	rdmsrl(MSR_IA32_PMC1, val);
 
 	return val;
 }
@@ -69,7 +67,7 @@ static u64 ksched_measure_pmc1(u64 sel)
 static u64 measure_pmc_fixed_1(void)
 {
     u64 val;
-    rdmsrl(MSR_CORE_PERF_FIXED_CTR1, val);
+    rdmsrl(MSR_IA32_FIXED_CTR1, val);
     return val;
 }
 

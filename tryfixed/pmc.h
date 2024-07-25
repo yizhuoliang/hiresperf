@@ -28,6 +28,7 @@
 #define PMC_ARCH_BRANCHES       PMC_ESEL_ENTRY(0xC4, 0x00, 0)
 #define PMC_ARCH_BRANCH_MISSES  PMC_ESEL_ENTRY(0xC5, 0x00, 0)
 
+/* non-architectural pmcs has different selecto definitions for each microarchitecture */
 #define PMC_SW_PREFETCH_ANY_SKYLAKE PMC_ESEL_ENTRY(0x32, 0x0F, 0)
 
 /* this performance counter measures LLC misses as a proxy for mem bandwidth */
