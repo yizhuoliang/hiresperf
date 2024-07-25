@@ -50,7 +50,7 @@ static int hrperf_logger(void *arg) {
         int cpu;
         for_each_possible_cpu(cpu) {
             printk(KERN_INFO "CPU %d: ", cpu);
-            print_and_clear(per_cpu_ptr(&per_cpu_buffer));
+            print_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu));
         }
         usleep_range(HRP_POLL_INTERVAL_US * 10, HRP_POLL_INTERVAL_US * 11);
     }
