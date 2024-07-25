@@ -39,7 +39,7 @@ static void __init ksched_init_pmc(void *arg)
 	       (1UL << 32) | (1UL << 33) | (1UL << 34));
 }
 
-static void __init ksched_stop_pmc(void *arg)
+static void ksched_stop_pmc(void *arg)
 {   
     // Zero all the control MSRs to stop counters
     wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0UL);
