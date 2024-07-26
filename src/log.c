@@ -19,11 +19,6 @@ struct file* hrperf_init_log_file(void) {
 void log_and_clear(HrperfRingBuffer *rb, int cpu_id, struct file *file) {
     HrperfLogEntry entry;
 
-    if (file == NULL) {
-        printk(KERN_ERR "Invalid file descriptor\n");
-        return;
-    }
-
     while (rb->head != rb->tail) {
         entry.cpu_id = cpu_id;
         entry.tick = rb->buffer[rb->head];
