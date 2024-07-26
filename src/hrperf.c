@@ -51,7 +51,7 @@ static int hrperf_logger(void *arg) {
     while (!kthread_should_stop()) {
         int cpu;
         for_each_possible_cpu(cpu) {
-            if (HRP_CPU_SELECTION_MASK & (1 << cpu)) {
+            if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
                 printk(KERN_INFO "CPU %d: ", cpu);
                 log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), cpu, log_file);
             }
@@ -65,7 +65,7 @@ static int __init hrperf_init(void) {
     // init poller thread
     int cpu;
     for_each_possible_cpu(cpu) {
-        if (HRP_CPU_SELECTION_MASK & (1 << cpu)) {
+        if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
             struct task_struct *thread;
             init_ring_buffer(per_cpu_ptr(&per_cpu_buffer, cpu));
             thread = kthread_create_on_node(hrperf_per_cpu_poller, NULL, cpu_to_node(cpu), "per_cpu_poller_thread_%d", cpu);
@@ -93,7 +93,7 @@ static void __exit hrperf_exit(void) {
     // stop the threads
     int cpu;
     for_each_possible_cpu(cpu) {
-        if (HRP_CPU_SELECTION_MASK & (1 << cpu)) {
+        if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
             kthread_stop(per_cpu(per_cpu_thread, cpu));
         }
     }
