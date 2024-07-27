@@ -100,13 +100,19 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             for_each_possible_cpu(cpu) {
                 if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
                     struct task_struct *t = per_cpu(per_cpu_thread, cpu);
-                    if (t && waitqueue_active(&t->wq)) {
+                    if (t) {
                         wake_up_process(t);
+                    } else {
+                        printk(KERN_ALERT "hrperf: guess what? a puller thread corrupted\n")
+                        return -1;
                     }
                 }
             }
-            if (logger_thread && waitqueue_active(&logger_thread->wq)) {
+            if (logger_thread) {
                 wake_up_process(logger_thread);
+            } else {
+                printk(KERN_ALERT "hrperf: guess what? the logger thread corrupted\n")
+                eturn -1;
             }
             printk(KERN_INFO "hrperf: Monitoring resumed\n");
         }
@@ -202,8 +208,7 @@ static int __init hrperf_init(void) {
 }
 
 static void __exit hrperf_exit(void) {
-    // here we need to stop the threads first, then wake them up to check the signal
-    // otherwise there will be extra readings at the time of rmmod
+
     int cpu;
     for_each_possible_cpu(cpu) {
         if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
@@ -216,23 +221,6 @@ static void __exit hrperf_exit(void) {
 
     if (logger_thread) {
         kthread_stop(logger_thread);
-    }
-
-    // then wake them up
-    for_each_possible_cpu(cpu) {
-        if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
-            struct task_struct *t = per_cpu(per_cpu_thread, cpu);
-            if (t) {
-                // Wake up the thread if it is in interruptible sleep
-                if (waitqueue_active(&t->wq)) {
-                    wake_up_process(t);
-                }
-            }
-        }
-    }
-
-    if (logger_thread && waitqueue_active(&logger_thread->wq)) {
-        wake_up_process(logger_thread);
     }
 
     hrperf_close_log_file(log_file);
