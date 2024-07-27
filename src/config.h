@@ -11,4 +11,11 @@
 #define HRP_LOGGER_CPU 0
 #define HRP_CPU_SELECTION_MASK 0b110UL
 
+#define HRP_MAJOR_NUMBER 280
+#define HRP_DEVICE_NAME "hrperf_device"
+#define HRP_CLASS_NAME "hrperf_class"
+#define HRP_IOC_MAGIC  'k'
+#define HRP_IOC_START  _IO(HRP_IOC_MAGIC, 1)
+#define HRP_IOC_STOP   _IO(HRP_IOC_MAGIC, 2)
+
 #endif

@@ -5,6 +5,8 @@
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
+#include <linux/ioctl.h>
+#include <linux/sched/signal.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -12,10 +14,25 @@
 #include "pmc.h"
 #include "log.h"
 
+// for the logger and pollers
 static DEFINE_PER_CPU(HrperfRingBuffer, per_cpu_buffer);
 static DEFINE_PER_CPU(struct task_struct *, per_cpu_thread);
 static struct task_struct *logger_thread;
 struct file *log_file;
+
+// for the char device
+static int major_number;
+static struct class* dev_class = NULL;
+static struct device* device_p = NULL;
+static struct cdev char_dev;
+
+static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+static struct file_operations fops = {
+    .unlocked_ioctl = hrperf_ioctl,
+    .owner = THIS_MODULE
+};
+
+static bool hrperf_running = false;
 
 // Per-cpu thread function for polling the PMCs
 static int hrperf_per_cpu_poller(void *arg) {
@@ -49,6 +66,14 @@ static int hrperf_per_cpu_poller(void *arg) {
 // Logger/printer thread function
 static int hrperf_logger(void *arg) {
     while (!kthread_should_stop()) {
+        if (!hrperf_running) {
+            set_current_state(TASK_INTERRUPTIBLE);
+            schedule();  // pause execution here
+        }
+
+        if (kthread_should_stop()) break;
+
+        usleep_range(HRP_POLL_INTERVAL_US * 10, HRP_POLL_INTERVAL_US * 11);
         int cpu;
         for_each_possible_cpu(cpu) {
             if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
@@ -56,13 +81,101 @@ static int hrperf_logger(void *arg) {
                 log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), cpu, log_file);
             }
         }
-        usleep_range(HRP_POLL_INTERVAL_US * 10, HRP_POLL_INTERVAL_US * 11);
+    }
+    return 0;
+}
+
+// IOCTL function for start/stop the logger/pollers
+static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
+    int cpu;
+
+    switch (cmd) {
+        case HRP_IOC_START:
+            if (!hrperf_running) {
+                hrperf_running = true;
+                // Start all paused threads
+                for_each_possible_cpu(cpu) {
+                    if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
+                        struct task_struct *t = per_cpu(per_cpu_thread, cpu);
+                        if (t && (t->state == TASK_INTERRUPTIBLE)) {
+                            set_current_state(TASK_RUNNING);
+                            wake_up_process(t);
+                        }
+                    }
+                }
+                if (logger_thread && (logger_thread->state == TASK_INTERRUPTIBLE)) {
+                    set_current_state(TASK_RUNNING);
+                    wake_up_process(logger_thread);
+                }
+                printk(KERN_INFO "hrperf: Monitoring resumed\n");
+            }
+            break;
+
+        case HRP_IOC_PAUSE:
+            if (hrperf_running) {
+                hrperf_running = false;
+                // Signal threads to pause
+                for_each_possible_cpu(cpu) {
+                    if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
+                        struct task_struct *t = per_cpu(per_cpu_thread, cpu);
+                        if (t) {
+                            send_sig(SIGSTOP, t, 0);
+                        }
+                    }
+                }
+                if (logger_thread) {
+                    send_sig(SIGSTOP, logger_thread, 0);
+                }
+                printk(KERN_INFO "hrperf: Monitoring paused\n");
+            }
+            break;
+
+        default:
+            return -ENOTTY;
     }
     return 0;
 }
 
 static int __init hrperf_init(void) {
-    // init poller thread
+    printk(KERN_INFO "hrperf: Initializing LKM\n");
+
+    // step 1: init char device
+    dev_t dev_num = MKDEV(HRP_MAJOR_NUMBER, 0);
+    if (register_chrdev_region(dev_num, 1, HRP_DEVICE_NAME) < 0) {
+        printk(KERN_ALERT "hrperf: failed to register a major number\n");
+        return -1;
+    }
+    major_number = MAJOR(dev_num);
+    printk(KERN_INFO "hrperf: registered with major number %d\n", majorNumber);
+
+    cdev_init(&char_dev, &fops);
+    char_dev.owner = THIS_MODULE;
+    if (cdev_add(&char_dev, dev_num, 1) < 0) {
+        unregister_chrdev_region(dev_num, 1);
+        printk(KERN_ALERT "hrperf: failed to add cdev\n");
+        return -1;
+    }
+
+    dev_class = class_create(THIS_MODULE, HRP_CLASS_NAME);
+    if (IS_ERR(dev_class)) {
+        unregister_chrdev_region(dev_num, 1);
+        cdev_del(&char_dev);
+        printk(KERN_ALERT "hrperf: failed to register device class\n");
+        return PTR_ERR(dev_class);
+    }
+    printk(KERN_INFO "hrperf: device class registered\n");
+
+    device_p = device_create(dev_class, NULL, dev_num, NULL, HRP_DEVICE_NAME);
+    if (IS_ERR(device_p)) {
+        class_destroy(dev_class);
+        cdev_del(&char_dev);
+        unregister_chrdev_region(dev_num, 1);
+        printk(KERN_ALERT "hrperf: failed to create the device\n");
+        return PTR_ERR(device_p);
+    }
+    printk(KERN_INFO "hrperf: device setup done\n")
+
+    // step 2: init poller threads
     int cpu;
     for_each_possible_cpu(cpu) {
         if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
@@ -75,14 +188,14 @@ static int __init hrperf_init(void) {
         }
     }
 
-    // init log file
+    // step 3: init log file
     log_file = hrperf_init_log_file();
     if (log_file == NULL) {
         printk(KERN_ERR "Failed to initialize log file\n");
         // Handle the error appropriately
     }
 
-    // init logger thread
+    // step 4: init logger thread
     logger_thread = kthread_run(hrperf_logger, NULL, "logger_thread");
     kthread_bind(logger_thread, HRP_LOGGER_CPU);
 
@@ -90,15 +203,38 @@ static int __init hrperf_init(void) {
 }
 
 static void __exit hrperf_exit(void) {
-    // stop the threads
+    // step 1: make sure the logger/pollers are waken and then exit
+    hrperf_running = false;
     int cpu;
     for_each_possible_cpu(cpu) {
         if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
-            kthread_stop(per_cpu(per_cpu_thread, cpu));
+            struct task_struct *t = per_cpu(per_cpu_thread, cpu);
+            if (t) {
+                if (t->state == TASK_INTERRUPTIBLE) {
+                    wake_up_process(t);
+                }
+                kthread_stop(t);
+            }
         }
     }
-    kthread_stop(logger_thread);
+    if (logger_thread) {
+        if (logger_thread->state == TASK_INTERRUPTIBLE) {
+            wake_up_process(logger_thread);
+        }
+        kthread_stop(logger_thread);
+    }
+
+    // step 2: close the file
     hrperf_close_log_file(log_file);
+
+    // step 3: unregister the device
+    dev_t dev_num = MKDEV(major_number, 0);
+    device_destroy(dev_class, dev_num);
+    class_destroy(dev_class);
+    cdev_del(&char_dev);
+    unregister_chrdev_region(dev_num, 1);
+
+    printk(KERN_INFO "hrperf: Cleaned up module\n");
 }
 
 module_init(hrperf_init);
