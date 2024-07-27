@@ -37,6 +37,13 @@ static struct file_operations fops = {
 
 static bool hrperf_running = false;
 
+static inline __attribute__((always_inline)) uint64_t rdtsc(void)
+{
+  uint32_t a, d;
+  asm volatile("rdtsc" : "=a" (a), "=d" (d));
+  return ((uint64_t)a) | (((uint64_t)d) << 32);
+}
+
 // Per-cpu thread function for polling the PMCs
 static int hrperf_per_cpu_poller(void *arg) {
     // enable the counters
@@ -51,7 +58,7 @@ static int hrperf_per_cpu_poller(void *arg) {
 
     // start polling
     while (!kthread_should_stop()) {
-        asm volatile("rdtsc" : "=A"(tick.tsc));
+        tick.tsc = rdtsc();
         rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
         rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
         rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
