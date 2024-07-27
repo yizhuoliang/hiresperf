@@ -146,7 +146,7 @@ static int __init hrperf_init(void) {
         return -1;
     }
     major_number = MAJOR(dev_num);
-    printk(KERN_INFO "hrperf: registered with major number %d\n", majorNumber);
+    printk(KERN_INFO "hrperf: registered with major number %d\n", major_number);
 
     cdev_init(&char_dev, &fops);
     char_dev.owner = THIS_MODULE;
@@ -173,7 +173,7 @@ static int __init hrperf_init(void) {
         printk(KERN_ALERT "hrperf: failed to create the device\n");
         return PTR_ERR(device_p);
     }
-    printk(KERN_INFO "hrperf: device setup done\n")
+    printk(KERN_INFO "hrperf: device setup done\n");
 
     // step 2: init poller threads
     int cpu;
