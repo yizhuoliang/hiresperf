@@ -9,6 +9,7 @@
 #include <linux/sched/signal.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
+#include <linux/fs.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -30,8 +31,8 @@ static struct cdev char_dev;
 
 static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 static struct file_operations fops = {
-    .unlocked_ioctl = hrperf_ioctl,
-    .owner = THIS_MODULE
+    .owner = THIS_MODULE,
+    .unlocked_ioctl = hrperf_ioctl
 };
 
 static bool hrperf_running = false;
