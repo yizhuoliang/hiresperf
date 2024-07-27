@@ -112,7 +112,7 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 wake_up_process(logger_thread);
             } else {
                 printk(KERN_ALERT "hrperf: guess what? the logger thread corrupted\n");
-                eturn -1;
+                return -1;
             }
             printk(KERN_INFO "hrperf: Monitoring resumed\n");
         }
