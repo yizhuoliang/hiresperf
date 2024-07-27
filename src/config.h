@@ -16,6 +16,6 @@
 #define HRP_CLASS_NAME "hrperf_class"
 #define HRP_IOC_MAGIC  'k'
 #define HRP_IOC_START  _IO(HRP_IOC_MAGIC, 1)
-#define HRP_IOC_STOP   _IO(HRP_IOC_MAGIC, 2)
+#define HRP_IOC_PAUSE   _IO(HRP_IOC_MAGIC, 2)
 
 #endif
