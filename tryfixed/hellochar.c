@@ -129,6 +129,12 @@ static int dev_open(struct inode *inodep, struct file *filep) {
     return 0;
 }
 
+unsigned long long read_tsc(void) {
+    unsigned int lo, hi;
+    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+
 static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset) {
     static const char *message = "Hello world from LKM!";
     int error_count = 0;
@@ -140,8 +146,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     }
 
     error_count = copy_to_user(buffer, message, message_len);
-    unsigned long long res_tsc;
-    asm volatile("rdtsc" : "=A"(res_tsc));
+    unsigned long long res_tsc = read_tsc();
     unsigned long long res_llc = (unsigned long long) ksched_measure_pmc(PMC_LLC_MISSES);
     unsigned long long res_prf = (unsigned long long) ksched_measure_pmc1(PMC_SW_PREFETCH_ANY_ESEL);
     unsigned long long res_cpu = (unsigned long long) measure_pmc_fixed_1();
