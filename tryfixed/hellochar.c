@@ -146,7 +146,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     unsigned long long res_prf = (unsigned long long) ksched_measure_pmc1(PMC_SW_PREFETCH_ANY_ESEL);
     unsigned long long res_cpu = (unsigned long long) measure_pmc_fixed_1();
 
-    printk(KERN_INFO "HelloCahr: LLC Miss: %llu, Prefetch: %llu, CPU UNHALT: %llu", res_llc, res_prf, res_cpu);
+    printk(KERN_INFO "HelloCahr: TSC: %llu LLC Miss: %llu, Prefetch: %llu, CPU UNHALT: %llu", res_tsc, res_llc, res_prf, res_cpu);
 
     if (error_count == 0) {
         printk(KERN_INFO "HelloChar: Sent %d characters to the user\n", message_len);
