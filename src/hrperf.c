@@ -93,48 +93,44 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
     int cpu;
 
     switch (cmd) {
-        case HRP_IOC_START:
-            if (!hrperf_running) {
-                hrperf_running = true;
-                // Start all paused threads
-                for_each_possible_cpu(cpu) {
-                    if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
-                        struct task_struct *t = per_cpu(per_cpu_thread, cpu);
-                        if (t && (t->state == TASK_INTERRUPTIBLE)) {
-                            set_current_state(TASK_RUNNING);
-                            wake_up_process(t);
-                        }
+    case HRP_IOC_START:
+        if (!hrperf_running) {
+            hrperf_running = true;
+            // Start all paused threads
+            for_each_possible_cpu(cpu) {
+                if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
+                    struct task_struct *t = per_cpu(per_cpu_thread, cpu);
+                    if (t && waitqueue_active(&t->wq)) {
+                        wake_up_process(t);
                     }
                 }
-                if (logger_thread && (logger_thread->state == TASK_INTERRUPTIBLE)) {
-                    set_current_state(TASK_RUNNING);
-                    wake_up_process(logger_thread);
-                }
-                printk(KERN_INFO "hrperf: Monitoring resumed\n");
             }
-            break;
-
-        case HRP_IOC_PAUSE:
-            if (hrperf_running) {
-                hrperf_running = false;
-                // Signal threads to pause
-                for_each_possible_cpu(cpu) {
-                    if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
-                        struct task_struct *t = per_cpu(per_cpu_thread, cpu);
-                        if (t) {
-                            send_sig(SIGSTOP, t, 0);
-                        }
+            if (logger_thread && waitqueue_active(&logger_thread->wq)) {
+                wake_up_process(logger_thread);
+            }
+            printk(KERN_INFO "hrperf: Monitoring resumed\n");
+        }
+        break;
+    case HRP_IOC_PAUSE:
+        if (hrperf_running) {
+            hrperf_running = false;
+            // Signal threads to pause
+            for_each_possible_cpu(cpu) {
+                if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
+                    struct task_struct *t = per_cpu(per_cpu_thread, cpu);
+                    if (t) {
+                        send_sig(SIGSTOP, t, 0);
                     }
                 }
-                if (logger_thread) {
-                    send_sig(SIGSTOP, logger_thread, 0);
-                }
-                printk(KERN_INFO "hrperf: Monitoring paused\n");
             }
-            break;
-
-        default:
-            return -ENOTTY;
+            if (logger_thread) {
+                send_sig(SIGSTOP, logger_thread, 0);
+            }
+            printk(KERN_INFO "hrperf: Monitoring paused\n");
+        }
+        break;
+    default:
+        return -ENOTTY;
     }
     return 0;
 }
@@ -206,31 +202,41 @@ static int __init hrperf_init(void) {
 }
 
 static void __exit hrperf_exit(void) {
-    // step 1: make sure the logger/pollers are waken and then exit
-    hrperf_running = false;
+    // here we need to stop the threads first, then wake them up to check the signal
+    // otherwise there will be extra readings at the time of rmmod
     int cpu;
     for_each_possible_cpu(cpu) {
         if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
             struct task_struct *t = per_cpu(per_cpu_thread, cpu);
             if (t) {
-                if (t->state == TASK_INTERRUPTIBLE) {
-                    wake_up_process(t);
-                }
                 kthread_stop(t);
             }
         }
     }
+
     if (logger_thread) {
-        if (logger_thread->state == TASK_INTERRUPTIBLE) {
-            wake_up_process(logger_thread);
-        }
         kthread_stop(logger_thread);
     }
 
-    // step 2: close the file
+    // then wake them up
+    for_each_possible_cpu(cpu) {
+        if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
+            struct task_struct *t = per_cpu(per_cpu_thread, cpu);
+            if (t) {
+                // Wake up the thread if it is in interruptible sleep
+                if (waitqueue_active(&t->wq)) {
+                    wake_up_process(t);
+                }
+            }
+        }
+    }
+
+    if (logger_thread && waitqueue_active(&logger_thread->wq)) {
+        wake_up_process(logger_thread);
+    }
+
     hrperf_close_log_file(log_file);
 
-    // step 3: unregister the device
     dev_t dev_num = MKDEV(major_number, 0);
     device_destroy(dev_class, dev_num);
     class_destroy(dev_class);
