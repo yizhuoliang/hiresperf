@@ -7,6 +7,8 @@
 #include <linux/delay.h>
 #include <linux/ioctl.h>
 #include <linux/sched/signal.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
 
 #include "buffer.h"
 #include "config.h"
