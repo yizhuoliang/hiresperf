@@ -37,6 +37,9 @@ def parse_hrperf_log(file_path):
             llc_misses_rate = (llc_misses - state['last_llc_misses']) / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
             sw_prefetch_rate = (sw_prefetch - state['last_sw_prefetch']) / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
 
+            # Calculate estimated memory bandwidth usage
+            memory_bandwidth = (llc_misses_rate + sw_prefetch_rate) * 64  # in bytes per microsecond
+
             # Update the last state for this CPU
             state.update({
                 'last_ktime': ktime,
@@ -48,7 +51,8 @@ def parse_hrperf_log(file_path):
             # Write the computed data to the respective file
             file_handles[cpu_id].write(f"CPU {cpu_id}: ktime={ktime}, ktime Aggregate={ktime_elapsed_since_first}, "
                                        f"ktime Delta={ktime_elapsed_since_last}, CPUUnhalt Rate={cpu_unhalt_rate:.6f}, "
-                                       f"LLC Misses Rate={llc_misses_rate:.6f}, SW Prefetch Rate={sw_prefetch_rate:.6f}\n")
+                                       f"LLC Misses Rate={llc_misses_rate:.6f}, SW Prefetch Rate={sw_prefetch_rate:.6f}, "
+                                       f"Estimated Memory Bandwidth={memory_bandwidth:.6f} bytes/us\n")
 
             # Commented lines for TSC processing
             # tsc_elapsed_since_first = tsc - state['first_tsc']
