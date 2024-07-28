@@ -10,6 +10,7 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/fs.h>
+#include <linux/ktime.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -58,7 +59,8 @@ static int hrperf_per_cpu_poller(void *arg) {
 
     // start polling
     while (!kthread_should_stop()) {
-        tick.tsc = read_tsc();
+        // tick.tsc = read_tsc();
+        tick.kts = ktime_get();
         rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
         rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
         rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
@@ -87,7 +89,6 @@ static int hrperf_logger(void *arg) {
         int cpu;
         for_each_possible_cpu(cpu) {
             if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
-                printk(KERN_INFO "CPU %d: ", cpu);
                 log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), cpu, log_file);
             }
         }
