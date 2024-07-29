@@ -32,7 +32,6 @@ void* cpu_intensive_task(void* arg) {
 }
 
 int main() {
-    // Pin this program to core 2
     pin_to_core(CORE_ID);
 
     // Create a thread to perform CPU-intensive tasks
