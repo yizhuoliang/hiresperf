@@ -21,7 +21,7 @@ void pin_to_core(int core_id) {
 }
 
 void* cpu_intensive_task(void* arg) {
-    hrperf_start()
+    hrperf_start();
     unsigned long long a = 0, b = 1, temp;
     while (1) {
         temp = a + b;
