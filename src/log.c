@@ -16,7 +16,7 @@ struct file* hrperf_init_log_file(void) {
     return file;
 }
 
-void log_and_clear(HrperfRingBuffer *rb, int cpu_id, struct file *file) {
+inline __attribute__((always_inline)) void log_and_clear(HrperfRingBuffer *rb, int cpu_id, struct file *file) {
     HrperfLogEntry entry;
 
     while (rb->head != rb->tail) {
