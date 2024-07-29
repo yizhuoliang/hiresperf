@@ -1,8 +1,8 @@
 import struct
 
 def parse_hrperf_log(file_path):
-    # Define the struct format for parsing (int for CPU ID and ktime struct)
-    entry_format = 'iqQQQ'
+    # Define the struct format for parsing (int for CPU ID, ktime, tsc, and unsigned long long)
+    entry_format = 'iqQQQQ'
     entry_size = struct.calcsize(entry_format)
     
     # Dictionary to store the last state and file handles for each CPU
@@ -15,7 +15,7 @@ def parse_hrperf_log(file_path):
             if not data:
                 break
             
-            cpu_id, ktime, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)
+            cpu_id, ktime, tsc, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)
             
             if cpu_id not in file_handles:
                 # Open a new file for this CPU if it hasn't been opened yet
@@ -23,7 +23,9 @@ def parse_hrperf_log(file_path):
                 # Initialize the first record and first ktime for this CPU
                 last_state[cpu_id] = {
                     'first_ktime': ktime,
+                    'first_tsc': tsc,
                     'last_ktime': ktime,
+                    'last_tsc': tsc,
                     'last_cpu_unhalt': cpu_unhalt,
                     'last_llc_misses': llc_misses,
                     'last_sw_prefetch': sw_prefetch
@@ -33,6 +35,7 @@ def parse_hrperf_log(file_path):
             state = last_state[cpu_id]
             ktime_elapsed_since_first = ktime - state['first_ktime']
             ktime_elapsed_since_last = ktime - state['last_ktime']
+            tsc_elapsed_since_last = tsc - state['last_tsc']
             cpu_unhalt_rate = (cpu_unhalt - state['last_cpu_unhalt']) / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
             llc_misses_rate = (llc_misses - state['last_llc_misses']) / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
             sw_prefetch_rate = (sw_prefetch - state['last_sw_prefetch']) / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
@@ -40,9 +43,13 @@ def parse_hrperf_log(file_path):
             # Calculate estimated memory bandwidth usage
             memory_bandwidth = (llc_misses_rate + sw_prefetch_rate) * 64  # in bytes per microsecond
 
+            # Calculate CPU usage
+            cpu_usage = (cpu_unhalt - state['last_cpu_unhalt']) / tsc_elapsed_since_last if tsc_elapsed_since_last > 0 else 0
+
             # Update the last state for this CPU
             state.update({
                 'last_ktime': ktime,
+                'last_tsc': tsc,
                 'last_cpu_unhalt': cpu_unhalt,
                 'last_llc_misses': llc_misses,
                 'last_sw_prefetch': sw_prefetch
@@ -50,16 +57,10 @@ def parse_hrperf_log(file_path):
 
             # Write the computed data to the respective file
             file_handles[cpu_id].write(f"CPU {cpu_id}: ktime={ktime}, ktime Aggregate={ktime_elapsed_since_first}, "
-                                       f"ktime Delta={ktime_elapsed_since_last}, CPUUnhalt Rate={cpu_unhalt_rate:.6f}, "
-                                       f"LLC Misses Rate={llc_misses_rate:.6f}, SW Prefetch Rate={sw_prefetch_rate:.6f}, "
-                                       f"Estimated Memory Bandwidth={memory_bandwidth:.6f} bytes/us\n")
-
-            # Commented lines for TSC processing
-            # tsc_elapsed_since_first = tsc - state['first_tsc']
-            # tsc_elapsed_since_last = tsc - state['last_tsc']
-            # cpu_unhalt_rate = (cpu_unhalt - state['last_cpu_unhalt']) / tsc_elapsed_since_last if tsc_elapsed_since_last > 0 else 0
-            # llc_misses_rate = (llc_misses - state['last_llc_misses']) / tsc_elapsed_since_last if tsc_elapsed_since_last > 0 else 0
-            # sw_prefetch_rate = (sw_prefetch - state['last_sw_prefetch']) / tsc_elapsed_since_last if tsc_elapsed_since_last > 0 else 0
+                                       f"ktime Delta={ktime_elapsed_since_last}, TSC Delta={tsc_elapsed_since_last}, "
+                                       f"CPUUnhalt Rate={cpu_unhalt_rate:.6f}, LLC Misses Rate={llc_misses_rate:.6f}, "
+                                       f"SW Prefetch Rate={sw_prefetch_rate:.6f}, Estimated Memory Bandwidth={memory_bandwidth:.6f} bytes/us, "
+                                       f"CPU Usage={cpu_usage:.6f}\n")
 
     # Close all file handles
     for handle in file_handles.values():

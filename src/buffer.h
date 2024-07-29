@@ -6,8 +6,8 @@
 #include "config.h"
 
 typedef struct {
-    // unsigned long long tsc;
     ktime_t kts;
+    unsigned long long tsc;
     unsigned long long cpu_unhalt;
     unsigned long long llc_misses;
     unsigned long long sw_prefetch;

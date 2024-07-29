@@ -59,8 +59,8 @@ static int hrperf_per_cpu_poller(void *arg) {
 
     // start polling
     while (!kthread_should_stop()) {
-        // tick.tsc = read_tsc();
         tick.kts = ktime_get();
+        tick.tsc = read_tsc();
         rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
         rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
         rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
