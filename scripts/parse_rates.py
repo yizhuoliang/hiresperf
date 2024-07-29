@@ -57,11 +57,11 @@ def parse_hrperf_log(file_path):
             })
 
             # Write the computed data to the respective file
-            file_handles[cpu_id].write(f"CPU {cpu_id}: ktime={ktime}, ktime Agg={ktime_elapsed_since_first}, "
-                                       f"ktime Delta={ktime_elapsed_since_last}, TSC Rate={tsc_rate:.6f}, "
-                                       f"CPUUnhalt Rate={cpu_unhalt_rate:.6f}, L3 MissRate={llc_misses_rate:.6f}, "
-                                       f"SW Pref Rate={sw_prefetch_rate:.6f}, Est MemBW={memory_bandwidth:.6f} bytes/us, "
-                                       f"CPU Usage={cpu_usage:.6f}\n")
+            file_handles[cpu_id].write(f"CPU {cpu_id}: ktime={ktime}, ktAgg={ktime_elapsed_since_first}, "
+                                       f"ktDelta={ktime_elapsed_since_last}, TSCRate={tsc_rate:.6f}, "
+                                       f"UnhaltRate={cpu_unhalt_rate:.6f}, L3MisRate={llc_misses_rate:.6f}, "
+                                       f"SWPrfRate={sw_prefetch_rate:.6f}, EstMBW={memory_bandwidth:.6f} bytes/us, "
+                                       f"CPUUse={cpu_usage:.6f}\n")
 
     # Close all file handles
     for handle in file_handles.values():

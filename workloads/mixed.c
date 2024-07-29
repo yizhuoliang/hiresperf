@@ -12,7 +12,7 @@
 // Macros to configure parameters
 #define MEMORY_SIZE (4UL * 1024 * 1024 * 1024) // 4GB
 #define CORE_ID 2
-#define RUN_TIME 2 // seconds
+#define RUN_TIME 1 // seconds
 
 void pin_to_core(int core_id) {
     cpu_set_t cpuset;
