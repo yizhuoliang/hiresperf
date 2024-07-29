@@ -96,7 +96,7 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    hrperf_stop();
+    hrperf_pause();
 
     // Free allocated memory
     free(memory_region);
