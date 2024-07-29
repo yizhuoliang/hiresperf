@@ -66,7 +66,7 @@ static int hrperf_per_cpu_poller(void *arg) {
         rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
 
         enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
-        usleep_range(HRP_POLL_INTERVAL_US, HRP_POLL_INTERVAL_US + 100);
+        usleep_range(HRP_POLL_INTERVAL_US_LOW, HRP_POLL_INTERVAL_US_HIGH);
     }
 
     // reset the control MSRs to zeros
@@ -75,7 +75,7 @@ static int hrperf_per_cpu_poller(void *arg) {
     return 0;
 }
 
-// Logger/printer thread function
+// Logger thread function
 static int hrperf_logger(void *arg) {
     while (!kthread_should_stop()) {
         if (!hrperf_running) {
@@ -85,7 +85,7 @@ static int hrperf_logger(void *arg) {
 
         if (kthread_should_stop()) break;
 
-        usleep_range(HRP_POLL_INTERVAL_US * 10, HRP_POLL_INTERVAL_US * 11);
+        usleep_range(HRP_POLL_INTERVAL_US_LOW * HRP_POLLING_LOGGING_RATIO, HRP_POLL_INTERVAL_US_HIGH * HRP_POLLING_LOGGING_RATIO);
         int cpu;
         for_each_possible_cpu(cpu) {
             if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {
