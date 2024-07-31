@@ -19,7 +19,7 @@ def parse_hrperf_log(file_path):
             
             if cpu_id not in file_handles:
                 # Open a new file for this CPU if it hasn't been opened yet
-                file_handles[cpu_id] = open(f'log_parsed_{cpu_id}.txt', 'w')
+                file_handles[cpu_id] = open(f'log_aggregated_{cpu_id}.txt', 'w')
                 # Initialize the initial record for this CPU
                 initial_state[cpu_id] = {
                     'first_ktime': ktime,
