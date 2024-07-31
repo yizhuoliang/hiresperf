@@ -4,19 +4,20 @@
 #include <pthread.h>
 #include <sched.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include "hrperf_control.h"
 
-#define REGION_SIZE (4L * 1024 * 1024 * 1024)  // 4GB
+#define REGION_SIZE (1L * 1024 * 1024 * 1024)  // 4GB
 
 
 void* scan_memory(void* arg) {
     hrperf_start();
     uint8_t* region = (uint8_t*)arg;
     for (size_t i = 0; i < REGION_SIZE; i++) {
-        // Simple operation: read the memory
+        // Read the memory using inline assembly
         uint8_t value = region[i];
-        region[i] = (uint8_t)1;
+        uint8_t x = value + 1;
     }
     hrperf_pause();
     return NULL;
@@ -24,11 +25,15 @@ void* scan_memory(void* arg) {
 
 int main() {
     // Allocate and zero-initialize 4GB region
-    uint8_t* region = (uint8_t*)calloc(REGION_SIZE, sizeof(uint8_t));
+    uint8_t* region = (uint8_t*)malloc(REGION_SIZE);
     if (!region) {
         perror("Failed to allocate memory");
         return EXIT_FAILURE;
     }
+
+    memset(region, 127, REGION_SIZE);
+
+    sleep(3);
 
     pthread_t thread;
     pthread_attr_t attr;
