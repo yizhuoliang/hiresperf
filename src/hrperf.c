@@ -59,6 +59,11 @@ static int hrperf_per_cpu_poller(void *arg) {
 
     // start polling
     while (!kthread_should_stop()) {
+        if (!hrperf_running) {
+            set_current_state(TASK_INTERRUPTIBLE);
+            schedule();  // pause execution here
+        }
+        
         tick.kts = ktime_get();
         tick.tsc = read_tsc();
         rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
