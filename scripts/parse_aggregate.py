@@ -19,7 +19,7 @@ def parse_hrperf_log(file_path):
             
             if cpu_id not in file_handles:
                 # Open a new file for this CPU if it hasn't been opened yet
-                file_handles[cpu_id] = open(f'log_aggregated_{cpu_id}.txt', 'w')
+                file_handles[cpu_id] = open(f'log_parsed_{cpu_id}.txt', 'w')
                 # Initialize the first record and first ktime for this CPU
                 last_state[cpu_id] = {
                     'first_ktime': ktime,
@@ -28,7 +28,8 @@ def parse_hrperf_log(file_path):
                     'last_tsc': tsc,
                     'last_cpu_unhalt': cpu_unhalt,
                     'last_llc_misses': llc_misses,
-                    'last_sw_prefetch': sw_prefetch
+                    'last_sw_prefetch': sw_prefetch,
+                    'memory_consumption': 0  # Initialize the memory consumption aggregation
                 }
 
             # Retrieve the previous state
@@ -40,11 +41,14 @@ def parse_hrperf_log(file_path):
             llc_misses_diff = llc_misses - state['last_llc_misses']
             sw_prefetch_diff = sw_prefetch - state['last_sw_prefetch']
 
-            # Calculate estimated memory bandwidth usage
+            # Calculate estimated memory bandwidth usage rate
             memory_bandwidth_rate = (llc_misses_diff + sw_prefetch_diff) * 64 / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0  # in bytes per microsecond
 
-            # Calculate CPU usage
+            # Calculate CPU usage rate
             cpu_usage_rate = cpu_unhalt_diff / tsc_elapsed_since_last if tsc_elapsed_since_last > 0 else 0
+
+            # Aggregate memory consumption
+            state['memory_consumption'] += (llc_misses_diff + sw_prefetch_diff) * 64
 
             # Update the last state for this CPU
             state.update({
@@ -58,7 +62,7 @@ def parse_hrperf_log(file_path):
             # Write the computed data to the respective file
             file_handles[cpu_id].write(f"CPU {cpu_id}: ktime={ktime}, ktAgg={ktime_elapsed_since_first}, "
                                        f"CPUUnhaltCycles={cpu_unhalt_diff}, "
-                                       f"MemoryConsumption={(llc_misses_diff + sw_prefetch_diff) * 64} bytes, "
+                                       f"MemoryConsumption={state['memory_consumption']} bytes, "
                                        f"EstMBWRate={memory_bandwidth_rate:.6f} bytes/us, "
                                        f"CPUUse={cpu_usage_rate:.6f}\n")
 
