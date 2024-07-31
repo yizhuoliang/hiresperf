@@ -15,6 +15,7 @@ void* scan_memory(void* arg) {
     for (size_t i = 0; i < REGION_SIZE; i++) {
         // Simple operation: read the memory
         uint8_t value = region[i];
+        (void)value;
     }
     hrperf_pause();
     return NULL;
