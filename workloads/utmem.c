@@ -21,16 +21,11 @@ void* scan_memory(void* arg) {
 }
 
 int main() {
-    // Allocate 4GB region
-    uint8_t* region = (uint8_t*)malloc(REGION_SIZE);
+    // Allocate and zero-initialize 4GB region
+    uint8_t* region = (uint8_t*)calloc(REGION_SIZE, sizeof(uint8_t));
     if (!region) {
         perror("Failed to allocate memory");
         return EXIT_FAILURE;
-    }
-
-    // Initialize the memory region (optional)
-    for (size_t i = 0; i < REGION_SIZE; i++) {
-        region[i] = (uint8_t)(i & 0xFF);
     }
 
     pthread_t thread;
