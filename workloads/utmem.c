@@ -14,12 +14,9 @@ void* scan_memory(void* arg) {
     hrperf_start();
     uint8_t* region = (uint8_t*)arg;
     for (size_t i = 0; i < REGION_SIZE; i++) {
-        // Read the memory using inline assembly
-        uint8_t value;
-        asm volatile ("movb (%1), %0"
-                      : "=r"(value)
-                      : "r"(&region[i])
-                      : "memory");
+        // Simple operation: read the memory
+        uint8_t value = region[i];
+        region[i] = (uint8_t)1;
     }
     hrperf_pause();
     return NULL;
