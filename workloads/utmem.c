@@ -9,13 +9,17 @@
 
 #define REGION_SIZE (4L * 1024 * 1024 * 1024)  // 4GB
 
+
 void* scan_memory(void* arg) {
     hrperf_start();
     uint8_t* region = (uint8_t*)arg;
     for (size_t i = 0; i < REGION_SIZE; i++) {
-        // Simple operation: read the memory
-        uint8_t value = region[i];
-        region[i] = (uint8_t)1;
+        // Read the memory using inline assembly
+        uint8_t value;
+        asm volatile ("movb (%1), %0"
+                      : "=r"(value)
+                      : "r"(&region[i])
+                      : "memory");
     }
     hrperf_pause();
     return NULL;
