@@ -4,8 +4,8 @@
 #include <linux/tcp.h>   // For TCP socket operations
 
 struct pid_tid {
-    __u64 pid;
-    __u64 tid;
+    __u32 pid;
+    __u32 tid;
 };
 
 struct bpf_map_def SEC("maps") traffic_count = {
@@ -21,7 +21,8 @@ int kprobe_tcp_sendmsg(struct pt_regs *ctx) {
     __u64 zero = 0;
     __u64 *val;
 
-    key = bpf_get_current_pid_tgid();
+    key.pid = bpf_get_current_pid_tgid() >> 32;  // Extract PID from the combined PID/TID
+    key.tid =  bpf_get_current_tid()
 
     // Look up the current value in the map
     val = bpf_map_lookup_elem(&traffic_count, &key);
