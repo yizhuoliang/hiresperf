@@ -21,7 +21,7 @@ int kprobe_tcp_sendmsg(struct pt_regs *ctx) {
     __u64 zero = 0;
     __u64 *val;
 
-    pid_tid key = bpf_get_current_pid_tgid();
+    key = bpf_get_current_pid_tgid();
 
     // Look up the current value in the map
     val = bpf_map_lookup_elem(&traffic_count, &key);
