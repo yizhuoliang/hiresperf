@@ -1,0 +1,2 @@
+gcc -o read_bpf read_bpf.c -I/usr/include/bpf -lbpf
+clang -O2 -g -target bpf -c net_traffic_monitor.c -o net_traffic_monitor.o
