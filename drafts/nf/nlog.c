@@ -30,6 +30,8 @@ static unsigned int post_routing_func(void *priv,
 
 /* Initialization function */
 static int __init packet_logger_init(void) {
+    int ret;
+
     /* Set up PRE_ROUTING hook */
     pre_routing_hook.hook = pre_routing_func;
     pre_routing_hook.hooknum = NF_INET_PRE_ROUTING;
@@ -37,7 +39,11 @@ static int __init packet_logger_init(void) {
     pre_routing_hook.priority = NF_IP_PRI_FIRST;
 
     /* Register PRE_ROUTING hook */
-    nf_register_net_hook(&pre_routing_hook);
+    ret = nf_register_net_hook(&init_net, &pre_routing_hook);
+    if (ret) {
+        printk(KERN_ERR "Failed to register PRE_ROUTING hook: %d\n", ret);
+        return ret;
+    }
 
     /* Set up POST_ROUTING hook */
     post_routing_hook.hook = post_routing_func;
@@ -46,7 +52,12 @@ static int __init packet_logger_init(void) {
     post_routing_hook.priority = NF_IP_PRI_FIRST;
 
     /* Register POST_ROUTING hook */
-    nf_register_net_hook(&post_routing_hook);
+    ret = nf_register_net_hook(&init_net, &post_routing_hook);
+    if (ret) {
+        nf_unregister_net_hook(&init_net, &pre_routing_hook);
+        printk(KERN_ERR "Failed to register POST_ROUTING hook: %d\n", ret);
+        return ret;
+    }
 
     printk(KERN_INFO "Packet logger module loaded.\n");
 
@@ -56,8 +67,8 @@ static int __init packet_logger_init(void) {
 /* Cleanup function */
 static void __exit packet_logger_exit(void) {
     /* Unregister hooks */
-    nf_unregister_net_hook(&pre_routing_hook);
-    nf_unregister_net_hook(&post_routing_hook);
+    nf_unregister_net_hook(&init_net, &pre_routing_hook);
+    nf_unregister_net_hook(&init_net, &post_routing_hook);
 
     printk(KERN_INFO "Packet logger module unloaded.\n");
 }
