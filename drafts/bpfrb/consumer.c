@@ -21,7 +21,7 @@ int main() {
     struct ring_buffer *rb;
     int map_fd, ret;
 
-    obj = bpf_object__open_file("hrp_bpf.bpf.o", NULL);
+    obj = bpf_object__open_file("hrp_bpf.o", NULL);
     bpf_object__load(obj);
     prog_tcp_out_start = bpf_object__find_program_by_name(obj, "kprobe_tcp_sendmsg");
     prog_tcp_out_end = bpf_object__find_program_by_name(obj, "kretprobe_tcp_sendmsg");
