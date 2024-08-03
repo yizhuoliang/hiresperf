@@ -7,7 +7,7 @@
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, HRP_BPF_BUFFER_SIZE); // Adjust size as needed
+    __uint(max_entries, HRP_BPF_BUFFER_SIZE);
 } hrp_bpf_rb_map SEC(".maps");
 
 SEC("kprobe/tcp_sendmsg")

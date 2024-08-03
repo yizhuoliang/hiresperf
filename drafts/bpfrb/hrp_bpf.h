@@ -25,7 +25,7 @@ struct hrp_bpf_event {
 
 // This polling interval doesn't affect the timeline accuracy,
 // since each event has timestamps of start and return times
-#define HRP_BPF_BUFFER_SIZE 10240
+#define HRP_BPF_BUFFER_SIZE (1 << 15) 
 #define HRP_BPF_POLL_INTERVAL_US 1000
 
 // the ssh process by default send tcp every 100us, pollutes the log
