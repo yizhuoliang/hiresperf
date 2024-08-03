@@ -5,7 +5,7 @@
 #include "config.h"
 
 inline __attribute__((always_inline)) bool is_full(const HrperfRingBuffer *rb) {
-    return ((rb->tail + 1) % HRP_BUFFER_SIZE) == rb->head;
+    return ((rb->tail + 1) % HRP_PMC_BUFFER_SIZE) == rb->head;
 }
 
 inline __attribute__((always_inline)) void init_ring_buffer(HrperfRingBuffer *rb) {
@@ -16,7 +16,7 @@ inline __attribute__((always_inline)) void init_ring_buffer(HrperfRingBuffer *rb
 inline __attribute__((always_inline)) void enqueue(HrperfRingBuffer *rb, HrperfTick data) {
     if (!is_full(rb)) {
         rb->buffer[rb->tail] = data;
-        rb->tail = (rb->tail + 1) % HRP_BUFFER_SIZE;
+        rb->tail = (rb->tail + 1) % HRP_PMC_BUFFER_SIZE;
     }
 }
 
@@ -28,7 +28,7 @@ inline __attribute__((always_inline)) void print_and_clear(HrperfRingBuffer *rb)
                 rb->buffer[rb->head].llc_misses,
                 rb->buffer[rb->head].cpu_unhalt,
                 rb->buffer[rb->head].sw_prefetch);
-        rb->head = (rb->head + 1) % HRP_BUFFER_SIZE;
+        rb->head = (rb->head + 1) % HRP_PMC_BUFFER_SIZE;
     }
     printk(KERN_INFO "Buffer cleared\n");
 }

@@ -14,7 +14,7 @@
 
 #include "buffer.h"
 #include "config.h"
-#include "intel-msr.h"
+#include "intel_msr.h"
 #include "pmc.h"
 #include "log.h"
 
@@ -63,7 +63,7 @@ static int hrperf_per_cpu_poller(void *arg) {
             set_current_state(TASK_INTERRUPTIBLE);
             schedule();  // pause execution here
         }
-        
+
         tick.kts = ktime_get();
         tick.tsc = read_tsc();
         rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
@@ -71,7 +71,7 @@ static int hrperf_per_cpu_poller(void *arg) {
         rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
 
         enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
-        usleep_range(HRP_POLL_INTERVAL_US_LOW, HRP_POLL_INTERVAL_US_HIGH);
+        usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW, HRP_PMC_POLL_INTERVAL_US_HIGH);
     }
 
     // reset the control MSRs to zeros
@@ -90,7 +90,7 @@ static int hrperf_logger(void *arg) {
 
         if (kthread_should_stop()) break;
 
-        usleep_range(HRP_POLL_INTERVAL_US_LOW * HRP_POLLING_LOGGING_RATIO, HRP_POLL_INTERVAL_US_HIGH * HRP_POLLING_LOGGING_RATIO);
+        usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW * HRP_POLLING_LOGGING_RATIO, HRP_PMC_POLL_INTERVAL_US_HIGH * HRP_POLLING_LOGGING_RATIO);
         int cpu;
         for_each_possible_cpu(cpu) {
             if (HRP_CPU_SELECTION_MASK & (1UL << cpu)) {

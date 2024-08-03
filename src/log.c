@@ -25,7 +25,7 @@ inline __attribute__((always_inline)) void log_and_clear(HrperfRingBuffer *rb, i
 
         kernel_write(file, &entry, sizeof(HrperfLogEntry), &file->f_pos);
 
-        rb->head = (rb->head + 1) % HRP_BUFFER_SIZE;
+        rb->head = (rb->head + 1) % HRP_PMC_BUFFER_SIZE;
     }
 }
 

@@ -40,25 +40,4 @@ int kprobe_tcp_sendmsg(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_recvmsg")
-int kprobe_tcp_recvmsg(struct pt_regs *ctx) {
-    struct pid_tid key = {};
-    __u64 zero = 0;
-    __u64 *val;
-
-    key.pid = bpf_get_current_pid_tgid() >> 32;
-    key.tid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
-
-    val = bpf_map_lookup_elem(&traffic_count, &key);
-    if (!val) {
-        bpf_map_update_elem(&traffic_count, &key, &zero, BPF_NOEXIST);
-        val = bpf_map_lookup_elem(&traffic_count, &key);
-    }
-    if (val) {
-        (*val)++;
-    }
-
-    return 0;
-}
-
 char _license[] SEC("license") = "GPL";

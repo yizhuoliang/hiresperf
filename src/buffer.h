@@ -14,7 +14,7 @@ typedef struct {
 } HrperfTick;
 
 typedef struct {
-    HrperfTick buffer[HRP_BUFFER_SIZE];
+    HrperfTick buffer[HRP_PMC_BUFFER_SIZE];
     size_t head;
     size_t tail;
 } HrperfRingBuffer;

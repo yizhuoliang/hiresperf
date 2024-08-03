@@ -7,7 +7,7 @@
 #include <linux/uaccess.h>  // for copy_to_user
 
 #include "pmc.h"
-#include "intel-msr.h"
+#include "intel_msr.h"
 
 #define DEVICE_NAME "hellochar"
 #define CLASS_NAME "hello"
