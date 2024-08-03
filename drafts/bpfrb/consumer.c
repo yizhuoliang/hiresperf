@@ -9,14 +9,14 @@ int hrp_bpf_event_callback(void *ctx, void *data, size_t size)
 {
     struct hrp_bpf_event *e = (struct hrp_bpf_event *)data;
     printf("Timestamp: %llu, PID: %u, TID: %u, Type: %u, Size: %u\n",
-           e->ts_ns, e->pid, e->tid, e->event_type, e->size);
+           e->ts_ns, e->pid, e->tid, e->event_type, e->size_or_ret);
     return 0;
 }
 
 int main() {
     struct bpf_object *obj;
-    struct bpf_program *prog_tcp_out_start, prog_tcp_out_end;
-    struct bpf_link *link_tcp_out_start, link_tcp_out_end;
+    struct bpf_program *prog_tcp_out_start, *prog_tcp_out_end;
+    struct bpf_link *link_tcp_out_start, *link_tcp_out_end;
     struct bpf_map *map;
     struct ring_buffer *rb;
     int map_fd, ret;
