@@ -8,25 +8,46 @@
 int hrp_bpf_event_callback(void *ctx, void *data, size_t size)
 {
     struct hrp_bpf_event *e = (struct hrp_bpf_event *)data;
-    printf("Timestamp: %llu, PID: %u, TID: %u, Type: %u, Size: %u\n",
-           e->ts_ns, e->pid, e->tid, e->event_type, e->size_or_ret);
+    printf("Timestamp: %llu, PID: %u, TID: %u, Type: %u, Size/Ret: %u, ID: %llu\n",
+           e->ts_ns, e->pid, e->tid, e->event_type, e->size_or_ret, e->rbp_or_bio_addr);
     return 0;
 }
 
 int main() {
     struct bpf_object *obj;
-    struct bpf_program *prog_tcp_out_start, *prog_tcp_out_end;
-    struct bpf_link *link_tcp_out_start, *link_tcp_out_end;
+    struct bpf_program *prog_tcp_out_start, *prog_tcp_out_end, *prog_tcp_in_start, *prog_tcp_in_end,
+                        *prog_udp_out_start, *prog_udp_out_end, *prog_udp_in_start, *prog_udp_in_end;
+    struct bpf_link *link_tcp_out_start, *link_tcp_out_end, *link_tcp_in_start, *link_tcp_in_end,
+                    *link_udp_out_start, *link_udp_out_end, *link_udp_in_start, *link_udp_in_end;
     struct bpf_map *map;
     struct ring_buffer *rb;
     int map_fd, ret;
 
+    // Step 1: load the BPF object
     obj = bpf_object__open_file("hrp_bpf.o", NULL);
     bpf_object__load(obj);
+
+    // Step 2: extract the BPF programs
     prog_tcp_out_start = bpf_object__find_program_by_name(obj, "kprobe_tcp_sendmsg");
     prog_tcp_out_end = bpf_object__find_program_by_name(obj, "kretprobe_tcp_sendmsg");
+    prog_tcp_in_start = bpf_object__find_program_by_name(obj, "kprobe_tcp_recvmsg");
+    prog_tcp_in_end = bpf_object__find_program_by_name(obj, "kretprobe_tcp_recvmsg");
+    prog_udp_out_start = bpf_object__find_program_by_name(obj, "kprobe_udp_sendmsg");
+    prog_udp_out_end = bpf_object__find_program_by_name(obj, "kretprobe_udp_sendmsg");
+    prog_udp_in_start = bpf_object__find_program_by_name(obj, "kprobe_udp_recvmsg");
+    prog_udp_in_end = bpf_object__find_program_by_name(obj, "kretprobe_udp_recvmsg");
+
+    // Step 3: attach the programs
     link_tcp_out_start = bpf_program__attach(prog_tcp_out_start);
-    link_tcp_out_start = bpf_program__attach(prog_tcp_out_end);
+    link_tcp_out_end = bpf_program__attach(prog_tcp_out_end);
+    link_tcp_in_start = bpf_program__attach(prog_tcp_in_start);
+    link_tcp_in_end = bpf_program__attach(prog_tcp_in_end);
+    link_udp_out_start = bpf_program__attach(prog_udp_out_start);
+    link_udp_out_end = bpf_program__attach(prog_udp_out_end);
+    link_udp_in_start = bpf_program__attach(prog_udp_in_start);
+    link_udp_in_end = bpf_program__attach(prog_udp_in_end);
+
+    // Step 4: init the ring buffer
     map = bpf_object__find_map_by_name(obj, "hrp_bpf_rb_map");
     map_fd = bpf_map__fd(map);
 
@@ -37,7 +58,7 @@ int main() {
         return 1;
     }
 
-    printf("Hiresperf BPF program loaded and attached. Monitoring Net and Disk IO...\n");
+    printf("Hiresperf BPF programs loaded and attached. Monitoring Net and Disk IO...\n");
 
     while (1) {
         // Poll ring buffer and consume data by the callback
@@ -52,6 +73,12 @@ int main() {
     ring_buffer__free(rb);
     bpf_link__destroy(link_tcp_out_start);
     bpf_link__destroy(link_tcp_out_end);
+    bpf_link__destroy(link_tcp_in_start);
+    bpf_link__destroy(link_tcp_in_end);
+    bpf_link__destroy(link_udp_out_start);
+    bpf_link__destroy(link_udp_out_end);
+    bpf_link__destroy(link_udp_in_start);
+    bpf_link__destroy(link_udp_in_end);
     bpf_object__close(obj);
 
     return 0;

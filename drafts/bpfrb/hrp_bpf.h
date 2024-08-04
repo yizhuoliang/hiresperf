@@ -20,8 +20,29 @@ struct hrp_bpf_event {
     unsigned int pid;
     unsigned int tid;
     unsigned int event_type;
+    // probably we should only use the ret when parsing
     unsigned int size_or_ret;
+    // If the calls are executed sequntially on each thread, then this is not needed,
+    // just put this here for now. RBP for net calls, bio address for block IO.
+    // Also, we don't need the generation number because there's no sampling.
+    unsigned long long rbp_or_bio_addr;
 };
+
+#define RB_RESERVE(E) \
+    struct hrp_bpf_event *E = bpf_ringbuf_reserve(&hrp_bpf_rb_map, sizeof(*E), 0); \
+    if (!E) return 0
+
+#define RB_SUBMIT(E) \
+    bpf_ringbuf_submit(E, 0)
+
+#define SET_EVENT_FIELDS(E, TYPE, SIZE_OR_RET, RBP_OR_BIO_ADDR) \
+    E->ts_ns = bpf_ktime_get_ns(); \
+    unsigned long long pid_tgid = bpf_get_current_pid_tgid(); \
+    E->pid = pid_tgid >> 32; \
+    E->tid = pid_tgid & 0xFFFFFFFF; \
+    E->event_type = TYPE; \
+    E->size_or_ret = (unsigned int)SIZE_OR_ERT; \
+    E->rbp_or_bio_addr = (unsigned long long)RBP_OR_BIO_ADDR
 
 // This polling interval doesn't affect the timeline accuracy,
 // since each event has timestamps of start and return times
@@ -30,7 +51,7 @@ struct hrp_bpf_event {
 
 // the ssh process by default send tcp every 100us, pollutes the log
 // so a non-zero value here will exclude the process from being logged
-#define HPR_BPF_SSH_PID 0
+#define HRP_BPF_SSH_PID 0
 
 #define HRP_BPF_LOG_PATH "/hrperf_bpf_log.bin"
 
