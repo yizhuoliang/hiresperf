@@ -28,24 +28,34 @@ int main() {
     bpf_object__load(obj);
 
     // Step 2: extract the BPF programs
-    prog_tcp_out_start = bpf_object__find_program_by_name(obj, "kprobe_tcp_sendmsg");
-    prog_tcp_out_end = bpf_object__find_program_by_name(obj, "kretprobe_tcp_sendmsg");
-    prog_tcp_in_start = bpf_object__find_program_by_name(obj, "kprobe_tcp_recvmsg");
-    prog_tcp_in_end = bpf_object__find_program_by_name(obj, "kretprobe_tcp_recvmsg");
-    prog_udp_out_start = bpf_object__find_program_by_name(obj, "kprobe_udp_sendmsg");
-    prog_udp_out_end = bpf_object__find_program_by_name(obj, "kretprobe_udp_sendmsg");
-    prog_udp_in_start = bpf_object__find_program_by_name(obj, "kprobe_udp_recvmsg");
-    prog_udp_in_end = bpf_object__find_program_by_name(obj, "kretprobe_udp_recvmsg");
+    if (HRP_BPF_ENABLE_TCP) {
+        prog_tcp_out_start = bpf_object__find_program_by_name(obj, "kprobe_tcp_sendmsg");
+        prog_tcp_out_end = bpf_object__find_program_by_name(obj, "kretprobe_tcp_sendmsg");
+        prog_tcp_in_start = bpf_object__find_program_by_name(obj, "kprobe_tcp_recvmsg");
+        prog_tcp_in_end = bpf_object__find_program_by_name(obj, "kretprobe_tcp_recvmsg");
+    }
+
+    if (HRP_BPF_ENABLE_UDP) {
+        prog_udp_out_start = bpf_object__find_program_by_name(obj, "kprobe_udp_sendmsg");
+        prog_udp_out_end = bpf_object__find_program_by_name(obj, "kretprobe_udp_sendmsg");
+        prog_udp_in_start = bpf_object__find_program_by_name(obj, "kprobe_udp_recvmsg");
+        prog_udp_in_end = bpf_object__find_program_by_name(obj, "kretprobe_udp_recvmsg");
+    }
 
     // Step 3: attach the programs
-    link_tcp_out_start = bpf_program__attach(prog_tcp_out_start);
-    link_tcp_out_end = bpf_program__attach(prog_tcp_out_end);
-    link_tcp_in_start = bpf_program__attach(prog_tcp_in_start);
-    link_tcp_in_end = bpf_program__attach(prog_tcp_in_end);
-    link_udp_out_start = bpf_program__attach(prog_udp_out_start);
-    link_udp_out_end = bpf_program__attach(prog_udp_out_end);
-    link_udp_in_start = bpf_program__attach(prog_udp_in_start);
-    link_udp_in_end = bpf_program__attach(prog_udp_in_end);
+    if (HRP_BPF_ENABLE_TCP) {
+        link_tcp_out_start = bpf_program__attach(prog_tcp_out_start);
+        link_tcp_out_end = bpf_program__attach(prog_tcp_out_end);
+        link_tcp_in_start = bpf_program__attach(prog_tcp_in_start);
+        link_tcp_in_end = bpf_program__attach(prog_tcp_in_end);
+    }
+
+    if (HRP_BPF_ENABLE_UDP) {
+        link_udp_out_start = bpf_program__attach(prog_udp_out_start);
+        link_udp_out_end = bpf_program__attach(prog_udp_out_end);
+        link_udp_in_start = bpf_program__attach(prog_udp_in_start);
+        link_udp_in_end = bpf_program__attach(prog_udp_in_end);
+    }
 
     // Step 4: init the ring buffer
     map = bpf_object__find_map_by_name(obj, "hrp_bpf_rb_map");
@@ -71,14 +81,20 @@ int main() {
     }
 
     ring_buffer__free(rb);
-    bpf_link__destroy(link_tcp_out_start);
-    bpf_link__destroy(link_tcp_out_end);
-    bpf_link__destroy(link_tcp_in_start);
-    bpf_link__destroy(link_tcp_in_end);
-    bpf_link__destroy(link_udp_out_start);
-    bpf_link__destroy(link_udp_out_end);
-    bpf_link__destroy(link_udp_in_start);
-    bpf_link__destroy(link_udp_in_end);
+    if (HRP_BPF_ENABLE_TCP) {
+        bpf_link__destroy(link_tcp_out_start);
+        bpf_link__destroy(link_tcp_out_end);
+        bpf_link__destroy(link_tcp_in_start);
+        bpf_link__destroy(link_tcp_in_end);
+    }
+
+    if (HRP_BPF_ENABLE_UDP) {
+        bpf_link__destroy(link_udp_out_start);
+        bpf_link__destroy(link_udp_out_end);
+        bpf_link__destroy(link_udp_in_start);
+        bpf_link__destroy(link_udp_in_end);
+    }
+
     bpf_object__close(obj);
 
     return 0;
