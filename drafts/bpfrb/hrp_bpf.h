@@ -29,7 +29,7 @@ struct hrp_bpf_event {
 };
 
 #define RB_RESERVE(E) \
-    struct hrp_bpf_event *E = bpf_ringbuf_reserve(&hrp_bpf_rb_map, sizeof(*E), 0); \
+    E = bpf_ringbuf_reserve(&hrp_bpf_rb_map, sizeof(*E), 0); \
     if (!E) return 0
 
 #define RB_SUBMIT(E) \
