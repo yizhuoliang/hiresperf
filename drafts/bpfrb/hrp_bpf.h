@@ -41,7 +41,7 @@ struct hrp_bpf_event {
     E->pid = pid_tgid >> 32; \
     E->tid = pid_tgid & 0xFFFFFFFF; \
     E->event_type = TYPE; \
-    E->size_or_ret = (unsigned int)SIZE_OR_ERT; \
+    E->size_or_ret = (unsigned int)SIZE_OR_RET; \
     E->rbp_or_bio_addr = (unsigned long long)RBP_OR_BIO_ADDR
 
 // This polling interval doesn't affect the timeline accuracy,
