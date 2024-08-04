@@ -21,7 +21,7 @@ int kprobe_tcp_sendmsg(struct pt_regs *ctx) {
     RB_RESERVE(e);
 
     // RDX for size, RBP for identification
-    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_TCP_OUT_START, ctx->rds, ctx->rbp);
+    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_TCP_OUT_START, ctx->rdx, ctx->rbp);
 
     RB_SUBMIT(e);
     return 0;
