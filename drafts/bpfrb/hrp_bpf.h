@@ -51,7 +51,7 @@ struct hrp_bpf_event {
 #define HRP_BPF_BUFFER_SIZE (1 << 15) 
 #define HRP_BPF_POLL_INTERVAL_US 1000
 
-#define HRP_BPF_ENABLE_TCP 0
+#define HRP_BPF_ENABLE_TCP 1
 #define HRP_BPF_ENABLE_UDP 1
 #define HRP_BPF_ENABLE_BLK 1
 
