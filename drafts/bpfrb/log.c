@@ -3,6 +3,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdio.h>
 
 #include "hrp_bpf.h"
 #include "log.h"

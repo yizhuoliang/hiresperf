@@ -2,13 +2,14 @@
 #include <bpf/bpf.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 #include "hrp_bpf.h"
 #include "log.h"
 
 int main() {
     // Step 0: initialize the log file
-    void *log_base = init_log_file();
+    void *log_base = hrp_bpf_log_init();
     if (!log_base) return 1;
 
     atomic_init(&log_offset, 0);
@@ -64,7 +65,7 @@ int main() {
     rb = ring_buffer__new(map_fd, hrp_bpf_event_callback, log_base, &opts);
     if (!rb) {
         fprintf(stderr, "Failed to create ring buffer\n");
-        munmap(log_base, LOG_FILE_SIZE);
+        munmap(log_base, HRP_BPF_LOG_FILE_SIZE);
         return 1;
     }
 
