@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "hrp_bpf.h"
+#include "log.h"
 
 int main() {
     // Step 0: initialize the log file
