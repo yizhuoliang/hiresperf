@@ -2,6 +2,9 @@
 #include <bpf/bpf_helpers.h>
 #include <linux/ptrace.h>
 #include <linux/tcp.h>
+#include <linux/socket.h>
+#include <net/sock.h>
+#include <linux/un.h>
 
 #include "hrp_bpf.h"
 

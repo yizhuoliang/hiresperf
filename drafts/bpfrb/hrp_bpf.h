@@ -51,7 +51,7 @@ struct hrp_bpf_event {
 #define HRP_BPF_BUFFER_SIZE (1 << 15) 
 #define HRP_BPF_POLL_INTERVAL_US 1000
 
-#define HRP_BPF_ENABLE_TCP 1
+#define HRP_BPF_ENABLE_TCP 0
 #define HRP_BPF_ENABLE_UDP 1
 #define HRP_BPF_ENABLE_BLK 1
 
@@ -59,6 +59,7 @@ struct hrp_bpf_event {
 // so a non-zero value here will exclude the process from being logged
 #define HRP_BPF_SSH_PID 0
 
-#define HRP_BPF_LOG_PATH "/hrperf_bpf_log.bin"
+#define HRP_BPF_LOG_FILE_PATH "/bpf_log.bin"
+#define HRP_BPF_LOG_FILE_SIZE (1024 * 1024 * 200)
 
 #endif

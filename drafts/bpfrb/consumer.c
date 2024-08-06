@@ -4,14 +4,15 @@
 #include <unistd.h>
 
 #include "hrp_bpf.h"
+#include "mmap.c"
 
-int hrp_bpf_event_callback(void *ctx, void *data, size_t size)
-{
-    struct hrp_bpf_event *e = (struct hrp_bpf_event *)data;
-    printf("Timestamp: %llu, PID: %u, TID: %u, Type: %u, Size/Ret: %u, ID: %llu\n",
-           e->ts_ns, e->pid, e->tid, e->event_type, e->size_or_ret, e->rbp_or_bio_addr);
-    return 0;
-}
+// int hrp_bpf_event_callback(void *ctx, void *data, size_t size)
+// {
+//     struct hrp_bpf_event *e = (struct hrp_bpf_event *)data;
+//     printf("Timestamp: %llu, PID: %u, TID: %u, Type: %u, Size/Ret: %u, ID: %llu\n",
+//            e->ts_ns, e->pid, e->tid, e->event_type, e->size_or_ret, e->rbp_or_bio_addr);
+//     return 0;
+// }
 
 int main() {
     struct bpf_object *obj;
