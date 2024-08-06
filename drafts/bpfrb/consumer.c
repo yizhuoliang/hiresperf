@@ -4,17 +4,14 @@
 #include <unistd.h>
 
 #include "hrp_bpf.h"
-#include "mmap.c"
-
-// int hrp_bpf_event_callback(void *ctx, void *data, size_t size)
-// {
-//     struct hrp_bpf_event *e = (struct hrp_bpf_event *)data;
-//     printf("Timestamp: %llu, PID: %u, TID: %u, Type: %u, Size/Ret: %u, ID: %llu\n",
-//            e->ts_ns, e->pid, e->tid, e->event_type, e->size_or_ret, e->rbp_or_bio_addr);
-//     return 0;
-// }
 
 int main() {
+    // Step 0: initialize the log file
+    void *log_base = init_log_file();
+    if (!log_base) return 1;
+
+    atomic_init(&log_offset, 0);
+
     struct bpf_object *obj;
     struct bpf_program *prog_tcp_out_start, *prog_tcp_out_end, *prog_tcp_in_start, *prog_tcp_in_end,
                         *prog_udp_out_start, *prog_udp_out_end, *prog_udp_in_start, *prog_udp_in_end;
@@ -63,9 +60,10 @@ int main() {
     map_fd = bpf_map__fd(map);
 
     struct ring_buffer_opts opts = { .sz = sizeof(opts) };
-    rb = ring_buffer__new(map_fd, hrp_bpf_event_callback, NULL, &opts);
+    rb = ring_buffer__new(map_fd, hrp_bpf_event_callback, log_base, &opts);
     if (!rb) {
         fprintf(stderr, "Failed to create ring buffer\n");
+        munmap(log_base, LOG_FILE_SIZE);
         return 1;
     }
 

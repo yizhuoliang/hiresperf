@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "hrp_bpf.h"
+#include "log.h"
 
 volatile atomic_size_t log_offset; // Track the next available offset
 
