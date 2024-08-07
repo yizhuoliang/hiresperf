@@ -4,7 +4,7 @@ BPF_CC=clang
 BPF_SRC=hrp_bpf.bpf.c
 BPF_OUT=hrp_bpf.o
 
-USER_SRC=consumer.c log.c
+USER_SRC=main.c hrp_bpf.c log.c
 USER_OUT=consumer
 
 CFLAGS=-O2 -g
