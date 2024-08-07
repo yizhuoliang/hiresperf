@@ -35,7 +35,7 @@ int hrp_bpf_init_log_and_programs() {
 
     // Step 1: load BPF object
     obj = bpf_object__open_file("hrp_bpf.o", NULL);
-    if obj == NULL {
+    if (obj == NULL) {
         hrp_bpf_log_cleanup(log_base);
         fprintf(stderr, "Failed to create load the bpf object file\n");
         return 1;
@@ -98,7 +98,7 @@ void *hrp_bpf_attach_and_poll(void *arg) {
 
 int hrp_bpf_start() {
     int ret = hrp_bpf_init_log_and_programs();
-    if ret != 0 {
+    if (ret != 0) {
         fprintf(stderr, "Hiresperf BPF programs failed to init.\n");
         return 1;
     }
