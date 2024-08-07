@@ -37,7 +37,7 @@ int kretprobe_tcp_sendmsg(struct pt_regs *ctx) {
     RB_RESERVE(e);
 
     // RAX for return val, RBP for identification
-    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_TCP_OUT_END, (0UL | ctx->eax), ctx->rbp);
+    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_TCP_OUT_END, ctx->rax, ctx->rbp);
 
     RB_SUBMIT(e);
     return 0;
@@ -63,7 +63,7 @@ int kretprobe_tcp_recvmsg(struct pt_regs *ctx) {
     RB_RESERVE(e);
 
     // RAX for return val, RBP for identification
-    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_TCP_IN_END, (0UL | ctx->eax), ctx->rbp);
+    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_TCP_IN_END, ctx->rax, ctx->rbp);
 
     RB_SUBMIT(e);
     return 0;
@@ -93,7 +93,7 @@ int kretprobe_udp_sendmsg(struct pt_regs *ctx) {
     RB_RESERVE(e);
 
     // RAX for return val, RBP for identification
-    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_UDP_OUT_END, (0UL | ctx->eax), ctx->rbp);
+    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_UDP_OUT_END, ctx->rax, ctx->rbp);
 
     RB_SUBMIT(e);
     return 0;
@@ -119,7 +119,7 @@ int kretprobe_udp_recvmsg(struct pt_regs *ctx) {
     RB_RESERVE(e);
 
     // RDX for size, RBP for identification
-    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_UDP_IN_END, (0UL | ctx->eax), ctx->rbp);
+    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_UDP_IN_END, ctx->rax, ctx->rbp);
 
     RB_SUBMIT(e);
     return 0;
