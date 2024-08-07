@@ -1,7 +1,7 @@
 CC=gcc
 BPF_CC=clang
 # This is for most BPF operations
-BPF_HEADER_PATH=/usr/include
+BPF_HEADER_PATH=/usr/include/linux
 # This is specifically for the block IO related headers
 KERNEL_HEADERS=/usr/src/linux-headers-5.15.0-113/include
 
