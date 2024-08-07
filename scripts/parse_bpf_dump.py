@@ -2,7 +2,7 @@ import struct
 import os
 
 # Define the struct format
-event_format = 'QIIQQL'  # Corresponds to the structure of hrp_bpf_event
+event_format = 'QIIIQL'  # Corresponds to the structure of hrp_bpf_event
 event_size = struct.calcsize(event_format)
 
 # Dictionary of event types for easy lookup
