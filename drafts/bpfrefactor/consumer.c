@@ -29,7 +29,6 @@ int hrp_bpf_init_log_and_programs() {
     // Step 0: init logging
     log_base = hrp_bpf_log_init();
     if (!log_base) {
-        hrp_bpf_log_cleanup()
         return 1;
     }
     atomic_init(&log_offset, 0);
@@ -37,6 +36,7 @@ int hrp_bpf_init_log_and_programs() {
     // Step 1: load BPF object
     obj = bpf_object__open_file("hrp_bpf.o", NULL);
     if obj == NULL {
+        hrp_bpf_log_cleanup(log_base);
         fprintf(stderr, "Failed to create load the bpf object file\n");
         return 1;
     }
@@ -118,13 +118,13 @@ void hrp_bpf_stop() {
     if (link_tcp_out_start) bpf_link__destroy(link_tcp_out_start);
     if (link_tcp_out_end) bpf_link__destroy(link_tcp_out_end);
     if (link_tcp_in_start) bpf_link__destroy(link_tcp_in_start);
-    if (link_tcp_in_end) bpf_link__restore(link_tcp_in_end);
+    if (link_tcp_in_end) bpf_link__destroy(link_tcp_in_end);
     if (link_udp_out_start) bpf_link__destroy(link_udp_out_start);
     if (link_udp_out_end) bpf_link__destroy(link_udp_out_end);
     if (link_udp_in_start) bpf_link__destroy(link_udp_in_start);
     if (link_udp_in_end) bpf_link__destroy(link_udp_in_end);
     if (obj) bpf_object__close(obj);
-    if (log_base) hrp_bpf_log_cleanup();
+    if (log_base) hrp_bpf_log_cleanup(log_base);
 }
 
 int main() {
