@@ -126,12 +126,3 @@ void hrp_bpf_stop() {
     if (obj) bpf_object__close(obj);
     if (log_base) hrp_bpf_log_cleanup(log_base);
 }
-
-int main() {
-    hrp_bpf_start();
-    printf("Monitoring started. Press enter to stop...\n");
-    getchar();
-    hrp_bpf_stop();
-    printf("Monitoring stopped.\n");
-    return 0;
-}
