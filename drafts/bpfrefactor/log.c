@@ -43,6 +43,28 @@ void hrp_bpf_log_cleanup(void *log_base) {
     munmap(log_base, HRP_BPF_LOG_FILE_SIZE);
 }
 
+void hrp_bpf_log_cleanup(void *log_base) {
+    // ensure flushed to disk before unmap (or unmap actually does this automatically?)
+    msync(log_base, HRP_BPF_LOG_FILE_SIZE, MS_SYNC);
+    munmap(log_base, HRP_BPF_LOG_FILE_SIZE);
+    
+    // Reopen the log file to truncate
+    int fd = open(HRP_BPF_LOG_FILE_PATH, O_RDWR);
+    if (fd < 0) {
+        perror("Failed to open BPF log file for truncation");
+        return;
+    }
+
+    size_t current_offset = atomic_load_explicit(&log_offset, memory_order_relaxed);
+
+    // truncate the file to the size of the used portion of the log
+    if (ftruncate(fd, current_offset) == -1) {
+        perror("Failed to truncate BPF log file");
+    }
+
+    close(fd);
+}
+
 // The callback function for handling BPF events
 int hrp_bpf_event_callback(void *ctx, void *data, size_t size) {
     struct hrp_bpf_event *e = (struct hrp_bpf_event *)data;
