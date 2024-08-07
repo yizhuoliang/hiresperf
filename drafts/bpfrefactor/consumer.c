@@ -81,7 +81,10 @@ void hrp_bpf_stop() {
     if (link_udp_in_start) bpf_link__destroy(link_udp_in_start);
     if (link_udp_in_end) bpf_link__destroy(link_udp_in_end);
     if (obj) bpf_object__close(obj);
-    if (log_base) munmap(log_base, HRP_BPF_LOG_FILE_SIZE);
+    if (log_base) {
+        msync(log_base, HRP_BPF_LOG_FILE_SIZE, MS_SYNC);  // Ensure data is flushed to disk
+        munmap(log_base, HRP_BPF_LOG_FILE_SIZE);
+    }
 }
 
 int main() {
