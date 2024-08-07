@@ -3,7 +3,7 @@ BPF_CC=clang
 # This is for most BPF operations
 BPF_HEADER_PATH=/usr/include
 # This is specifically for the block IO related headers
-KERNEL_HEADERS=/usr/src/linux-headers-5.15.0-113/include
+KERNEL_HEADERS=/usr/src/linux-headers-5.15.0-113/include/linux
 
 BPF_SRC=hrp_bpf.bpf.c
 BPF_OUT=hrp_bpf.o
