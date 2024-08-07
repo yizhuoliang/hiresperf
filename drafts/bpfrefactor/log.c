@@ -39,11 +39,6 @@ void* hrp_bpf_log_init() {
 }
 
 void hrp_bpf_log_cleanup(void *log_base) {
-    msync(log_base, HRP_BPF_LOG_FILE_SIZE, MS_SYNC);
-    munmap(log_base, HRP_BPF_LOG_FILE_SIZE);
-}
-
-void hrp_bpf_log_cleanup(void *log_base) {
     // ensure flushed to disk before unmap (or unmap actually does this automatically?)
     msync(log_base, HRP_BPF_LOG_FILE_SIZE, MS_SYNC);
     munmap(log_base, HRP_BPF_LOG_FILE_SIZE);
