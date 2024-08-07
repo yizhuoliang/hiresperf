@@ -5,7 +5,8 @@ BPF_SRC=hrp_bpf.bpf.c
 BPF_OUT=hrp_bpf.o
 
 USER_SRC=main.c consumer.c log.c
-USER_OUT=consumer
+OBJS=main.o consumer.o log.o
+USER_OUT=out
 
 CFLAGS=-O2 -g
 USER_LDFLAGS=-lbpf -pthread
@@ -18,8 +19,13 @@ all: $(BPF_OUT) $(USER_OUT)
 $(BPF_OUT): $(BPF_SRC)
 	$(BPF_CC) $(BPF_CFLAGS) -c $< -o $@
 
-$(USER_OUT): $(USER_SRC)
-	$(CC) $(CFLAGS) $^ $(USER_LDFLAGS) -o $@
+# Compile each source file to an object file
+$(OBJS): %.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Link all object files to create the final executable
+$(USER_OUT): $(OBJS)
+	$(CC) $(OBJS) $(USER_LDFLAGS) -o $@
 
 clean:
-	rm -f $(BPF_OUT) $(USER_OUT)
+	rm -f $(BPF_OUT) $(USER_OUT) $(OBJS)
