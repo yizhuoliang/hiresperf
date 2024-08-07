@@ -2,9 +2,9 @@
 #include <bpf/bpf_helpers.h>
 #include <linux/ptrace.h>
 #include <linux/tcp.h>
-#include <linux/bio.h>
-#include <linux/bvec.h>
-#include <linux/blk_types.h>
+#include "bio.h"
+#include "bvec.h"
+#include "blk_types.h"
 
 #include "hrp_bpf.h"
 
