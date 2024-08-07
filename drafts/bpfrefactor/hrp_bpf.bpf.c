@@ -1,6 +1,6 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
-#include <ptrace.h>
+#include <linux/ptrace.h>
 #include <linux/tcp.h>
 // #include <linux/bio.h>
 // #include <linux/bvec.h>
