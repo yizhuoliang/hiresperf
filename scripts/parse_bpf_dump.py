@@ -27,7 +27,8 @@ def parse_log_file(filepath):
     for entry in entries:
         ts_ns, pid, tid, event_type, size_or_ret, rbp_or_bio_addr = entry
         
-        event_name = event_types.get(event_type, "UNKNOWN EVENT")
+        # Check if event type is known, else print it as an unsigned int
+        event_name = event_types.get(event_type, f"UNKNOWN EVENT {event_type}")
         type_parts = event_name.split()
 
         # Determine if it's a size or a return value
