@@ -8,7 +8,7 @@ USER_SRC=consumer.c log.c
 USER_OUT=consumer
 
 CFLAGS=-O2 -g
-USER_LDFLAGS=-lbpf
+USER_LDFLAGS=-lbpf -pthread
 BPF_CFLAGS=-O2 -g -target bpf
 
 .PHONY: all clean

@@ -38,6 +38,11 @@ void* hrp_bpf_log_init() {
     return mapped;
 }
 
+void hrp_bpf_log_cleanup(void *log_base) {
+    msync(log_base, HRP_BPF_LOG_FILE_SIZE, MS_SYNC);
+    munmap(log_base, HRP_BPF_LOG_FILE_SIZE);
+}
+
 // The callback function for handling BPF events
 int hrp_bpf_event_callback(void *ctx, void *data, size_t size) {
     struct hrp_bpf_event *e = (struct hrp_bpf_event *)data;
