@@ -21,7 +21,7 @@ struct hrp_bpf_event {
     unsigned int tid;
     unsigned int event_type;
     // probably we should only use the ret when parsing
-    unsigned int size_or_ret;
+    unsigned long long size_or_ret;
     // If the calls are executed sequntially on each thread, then this is not needed,
     // just put this here for now. RBP for net calls, bio address for block IO.
     // Also, we don't need the generation number because there's no sampling.
@@ -43,6 +43,10 @@ struct hrp_bpf_event {
     E->event_type = TYPE; \
     E->size_or_ret = (unsigned int)SIZE_OR_RET; \
     E->rbp_or_bio_addr = (unsigned long long)RBP_OR_BIO_ADDR
+
+#define GET_BIO(CTX, BIO_REGISTER) \
+    (struct bio *)(ctx->rsi); \
+    if (!bio) return 0
 
 // CONFIG SECTION
 
