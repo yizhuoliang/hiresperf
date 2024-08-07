@@ -14,7 +14,7 @@ USER_OUT=out
 
 CFLAGS=-O2 -g
 USER_LDFLAGS=-lbpf -pthread
-BPF_CFLAGS=-O2 -g -target bpf -I$(BPF_HEADER_PATH) -I$(KERNEL_HEADERS)
+BPF_CFLAGS=-O2 -g -target bpf
 
 .PHONY: all clean
 
