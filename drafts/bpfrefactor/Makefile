@@ -1,5 +1,6 @@
 CC=gcc
 BPF_CC=clang
+KERNEL_HEADERS=/usr/src/linux-headers-5.15.0-113/include
 
 BPF_SRC=hrp_bpf.bpf.c
 BPF_OUT=hrp_bpf.o
@@ -10,7 +11,7 @@ USER_OUT=out
 
 CFLAGS=-O2 -g
 USER_LDFLAGS=-lbpf -pthread
-BPF_CFLAGS=-O2 -g -target bpf
+BPF_CFLAGS=-O2 -g -target bpf -I$(KERNEL_HEADERS)
 
 .PHONY: all clean
 
