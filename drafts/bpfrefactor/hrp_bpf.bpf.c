@@ -1,7 +1,7 @@
 #include "bpf.h"
 #include <bpf/bpf_helpers.h>
-#include <linux/ptrace.h>
-#include <linux/tcp.h>
+#include "ptrace.h"
+#include "linux/tcp.h"
 #include "linux/bio.h"
 #include "linux/bvec.h"
 #include "linux/blk_types.h"
