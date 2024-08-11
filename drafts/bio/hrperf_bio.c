@@ -4,10 +4,6 @@
 #include <linux/blkdev.h>
 #include <linux/kprobes.h>
 
-static struct kprobe kp = {
-    .symbol_name    = "submit_bio",
-};
-
 static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
     struct bio *bio = (struct bio *)regs->di; // For x86_64, the first argument is in DI register
 
@@ -18,29 +14,51 @@ static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
     return 0;
 }
 
-static void handler_post(struct kprobe *p, struct pt_regs *regs, unsigned long flags) {
-    // Optional: handle post-submit operations
-}
-
-static int handler_fault(struct kprobe *p, struct pt_regs *regs, int trapnr) {
-    printk(KERN_INFO "Fault at probe address=%p, trap number=%d\n", p->addr, trapnr);
+static int handler_ret(struct kretprobe_instance *ri, struct pt_regs *regs) {
+    int ret_val = regs_return_value(regs);
+    printk(KERN_INFO "submit_bio returned with %d\n", ret_val);
     return 0;
 }
 
-static int __init kprobe_init(void) {
-    kp.pre_handler = handler_pre;
-    kp.post_handler = handler_post;
-    kp.fault_handler = handler_fault;
+static struct kprobe kp = {
+    .symbol_name    = "submit_bio",
+    .pre_handler    = handler_pre,
+    // Optionally you could also define a post_handler if needed
+};
 
-    register_kprobe(&kp);
-    printk(KERN_INFO "kprobe at %p registered\n", kp.addr);
+static struct kretprobe kr = {
+    .kp = {
+        .symbol_name = "submit_bio",
+    },
+    .handler = handler_ret,
+};
+
+static int __init kprobe_init(void) {
+    int ret;
+
+    ret = register_kprobe(&kp);
+    if (ret < 0) {
+        printk(KERN_INFO "Failed to register kprobe: %d\n", ret);
+        return ret;
+    }
+    printk(KERN_INFO "Kprobe at %p registered\n", kp.addr);
+
+    ret = register_kretprobe(&kr);
+    if (ret < 0) {
+        printk(KERN_INFO "Failed to register kretprobe: %d\n", ret);
+        unregister_kprobe(&kp);  // Cleanup already registered kprobe if kretprobe registration fails
+        return ret;
+    }
+    printk(KERN_INFO "Kretprobe registered\n");
 
     return 0;
 }
 
 static void __exit kprobe_exit(void) {
     unregister_kprobe(&kp);
-    printk(KERN_INFO "kprobe at %p unregistered\n", kp.addr);
+    printk(KERN_INFO "Kprobe at %p unregistered\n", kp.addr);
+    unregister_kretprobe(&kr);
+    printk(KERN_INFO "Kretprobe unregistered\n");
 }
 
 module_init(kprobe_init);
@@ -48,4 +66,4 @@ module_exit(kprobe_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Your Name");
-MODULE_DESCRIPTION("A simple module to monitor block IO");
+MODULE_DESCRIPTION("A simple module to monitor block IO with entry and exit tracing");
