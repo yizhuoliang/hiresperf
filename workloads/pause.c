@@ -2,8 +2,8 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 
-#define HRP_IOC_MAGIC 'k'
-#define HRP_IOC_STOP _IO(HRP_IOC_MAGIC, 2)
+#define HRP_PMC_IOC_MAGIC 'k'
+#define HRP_IOC_STOP _IO(HRP_PMC_IOC_MAGIC, 2)
 
 int main() {
     int fd;

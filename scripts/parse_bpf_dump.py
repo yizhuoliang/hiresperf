@@ -7,9 +7,9 @@ event_size = struct.calcsize(event_format)
 
 # Dictionary of event types for easy lookup
 event_types = {
-    1: "TCP IN START", 2: "TCP OUT START", 3: "UDP IN START", 4: "UDP OUT START",
-    5: "BLKIO READ START", 6: "BLKIO WRITE START", 7: "TCP IN END", 8: "TCP OUT END",
-    9: "UDP IN END", 10: "UDP OUT END", 11: "BLKIO READ END", 12: "BLKIO WRITE END"
+    1: "TCP_IN_START", 2: "TCP_OUT_START", 3: "UDP_IN_START", 4: "UDP_OUT_START",
+    5: "BLKIO_READ_START", 6: "BLKIO_WRITE_START", 7: "TCP_IN_END", 8: "TCP_OUT_END",
+    9: "UDP_IN_END", 10: "UDP_OUT_END", 11: "BLKIO_READ_END", 12: "BLKIO_WRITE_END"
 }
 
 def parse_log_file(filepath):

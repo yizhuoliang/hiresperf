@@ -1,3 +1,7 @@
+/*
+    This per-core ring buffer is for single-producer single-consumer case
+*/
+
 #include <linux/slab.h>
 #include <linux/sched.h>
 

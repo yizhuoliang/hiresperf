@@ -2,8 +2,8 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 
-#define HRP_IOC_MAGIC 'k'
-#define HRP_IOC_START _IO(HRP_IOC_MAGIC, 1)
+#define HRP_PMC_IOC_MAGIC 'k'
+#define HRP_PMC_IOC_START _IO(HRP_PMC_IOC_MAGIC, 1)
 
 int main() {
     int fd;
@@ -16,7 +16,7 @@ int main() {
     }
 
     // Send the start command
-    if (ioctl(fd, HRP_IOC_START) < 0) {
+    if (ioctl(fd, HRP_PMC_IOC_START) < 0) {
         perror("ioctl");
         close(fd);
         return 1;

@@ -6,9 +6,9 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#define HRP_IOC_MAGIC 'k'
-#define HRP_IOC_START _IO(HRP_IOC_MAGIC, 1)
-#define HRP_IOC_STOP _IO(HRP_IOC_MAGIC, 2)
+#define HRP_PMC_IOC_MAGIC 'k'
+#define HRP_PMC_IOC_START _IO(HRP_PMC_IOC_MAGIC, 1)
+#define HRP_IOC_STOP _IO(HRP_PMC_IOC_MAGIC, 2)
 
 int hrperf_start() {
     int fd;
@@ -21,7 +21,7 @@ int hrperf_start() {
     }
 
     // Send the start command
-    if (ioctl(fd, HRP_IOC_START) < 0) {
+    if (ioctl(fd, HRP_PMC_IOC_START) < 0) {
         perror("ioctl");
         close(fd);
         return 1;
