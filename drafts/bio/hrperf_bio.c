@@ -3,13 +3,15 @@
 #include <linux/bio.h>
 #include <linux/blkdev.h>
 #include <linux/kprobes.h>
+#include <linux/sched.h>
 
 static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
     struct bio *bio = (struct bio *)regs->di; // For x86_64, the first argument is in DI register
 
-    printk(KERN_INFO "submit_bio: bio=%p, sector=%llu, op=%x, size=%u, start_time=%llu\n",
+    printk(KERN_INFO "submit_bio: bio=%p, sector=%llu, op=%x, size=%u, start_time=%llu, pid=%d, tgid=%d\n",
            bio, (unsigned long long)bio->bi_iter.bi_sector,
-           bio_op(bio), bio->bi_iter.bi_size, ktime_get_ns());
+           bio_op(bio), bio->bi_iter.bi_size, ktime_get_ns(),
+           current->pid, current->tgid);  // Add process ID and thread group ID
 
     return 0;
 }
