@@ -2,7 +2,7 @@
 #define _HRP_CONFIG_H
 
 /*
-    Configuration macros
+    PMC Component Configurations
 */
 
 #define HRP_PMC_BUFFER_SIZE 50
@@ -19,5 +19,27 @@
 #define HRP_PMC_IOC_MAGIC  'k'
 #define HRP_PMC_IOC_START  _IO(HRP_PMC_IOC_MAGIC, 1)
 #define HRP_PMC_IOC_PAUSE   _IO(HRP_PMC_IOC_MAGIC, 2)
+
+/*
+    BPF Component Configurations
+*/
+
+// This polling interval doesn't affect the timeline accuracy,
+// since each event has timestamps of start and return times
+#define HRP_BPF_BUFFER_SIZE (1 << 15) 
+#define HRP_BPF_POLL_INTERVAL_US 1000
+
+#define HRP_BPF_ENABLE_TCP 0
+#define HRP_BPF_ENABLE_UDP 1
+#define HRP_BPF_ENABLE_BLK 1
+
+#define HRP_BPF_POLLING_CPU 3
+
+// the ssh process by default send tcp every 100us, pollutes the log
+// so a non-zero value here will exclude the process from being logged
+#define HRP_BPF_SSH_PID 0
+
+#define HRP_BPF_LOG_FILE_PATH "/bpf_log.bin"
+#define HRP_BPF_LOG_FILE_SIZE (1024 * 1024 * 200)
 
 #endif

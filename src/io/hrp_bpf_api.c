@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#include "../config.h"
 #include "hrp_bpf.h"
 #include "log.h"
 #include "hrp_bpf_api.h"
@@ -103,11 +104,24 @@ int hrp_bpf_start() {
         return 1;
     }
 
-    // launch the polling thread
-    if (pthread_create(&hrp_bpf_polling_thread, NULL, hrp_bpf_attach_and_poll, NULL) != 0) {
+    pthread_t hrp_bpf_polling_thread;
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(HRP_BPF_POLLING_CPU, &cpuset);
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
+
+    // launch the polling thread with specific CPU affinity
+    if (pthread_create(&hrp_bpf_polling_thread, &attr, hrp_bpf_attach_and_poll, NULL) != 0) {
         fprintf(stderr, "Hiresperf BPF failed to start polling thread.\n");
         return 1;
     }
+
+    pthread_attr_destroy(&attr);
+
+    return 0;
 }
 
 void hrp_bpf_stop() {

@@ -6,6 +6,7 @@
 // #include <linux/bvec.h>
 // #include <linux/blk_types.h>
 
+#include "../config.h"
 #include "hrp_bpf.h"
 
 struct {

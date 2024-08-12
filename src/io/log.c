@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "../config.h"
 #include "hrp_bpf.h"
 #include "log.h"
 
