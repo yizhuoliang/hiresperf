@@ -1,5 +1,6 @@
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
+BUILD_DIR := ./build
 
 obj-m += hrperf.o
 hrperf-objs := src/buffer.o src/log.o src/hrperf.o
