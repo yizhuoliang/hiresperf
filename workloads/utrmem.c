@@ -6,11 +6,12 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include "hrperf_control.h"
+#include "hrperf_api.h"
 
 #define REGION_SIZE (1L * 1024 * 1024 * 1024)  // 1GB
 
 void* fill_memory(void* arg) {
+    hrp_bpf_start();
     hrperf_start();
     uint8_t* region = (uint8_t*)arg;
     for (size_t i = 0; i < REGION_SIZE; i++) {
@@ -18,6 +19,7 @@ void* fill_memory(void* arg) {
         region[i] = 231;
     }
     hrperf_pause();
+    hrp_bpf_stop();
     return NULL;
 }
 
