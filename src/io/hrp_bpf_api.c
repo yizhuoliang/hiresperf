@@ -5,6 +5,8 @@
 #include <sys/mman.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <errno.h>
+#include <sched.h>
 
 #include "../config.h"
 #include "hrp_bpf.h"
