@@ -12,7 +12,7 @@ OBJS=main.o
 USER_OUT=out
 
 # Compiler and linker flags
-CFLAGS=-O2 -fPIC  # Added -fPIC for position-independent code
+CFLAGS=-O2 -fPIC -D_GNU_SOURCE # Added -fPIC for position-independent code
 USER_LDFLAGS=-L. -lhrpio
 BPF_CFLAGS=-O2 -g -target bpf
 
