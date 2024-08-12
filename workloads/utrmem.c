@@ -10,14 +10,12 @@
 
 #define REGION_SIZE (1L * 1024 * 1024 * 1024)  // 1GB
 
-
-void* scan_memory(void* arg) {
+void* fill_memory(void* arg) {
     hrperf_start();
     uint8_t* region = (uint8_t*)arg;
     for (size_t i = 0; i < REGION_SIZE; i++) {
-        // Read the memory using inline assembly
-        uint8_t value = region[i];
-        uint8_t x = value + 1;
+        // Write the magic number 231 to each byte
+        region[i] = 231;
     }
     hrperf_pause();
     return NULL;
@@ -47,8 +45,8 @@ int main() {
     CPU_SET(4, &cpuset);
     pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
 
-    // Create the thread
-    if (pthread_create(&thread, &attr, scan_memory, (void*)region) != 0) {
+    // Create the thread to fill memory
+    if (pthread_create(&thread, &attr, fill_memory, (void*)region) != 0) {
         perror("Failed to create thread");
         free(region);
         return EXIT_FAILURE;
@@ -57,10 +55,21 @@ int main() {
     // Wait for the thread to finish
     pthread_join(thread, NULL);
 
+    // Post thread join, scan through the buffer to verify all slots are written
+    printf("Verifying buffer contents...\n");
+    for (size_t i = 0; i < REGION_SIZE; i++) {
+        if (region[i] != 231) {
+            printf("Verification failed at index %zu: expected 231, found %d\n", i, region[i]);
+            free(region);
+            pthread_attr_destroy(&attr);
+            return EXIT_FAILURE;
+        }
+    }
+
     // Clean up
     free(region);
     pthread_attr_destroy(&attr);
 
-    printf("Memory scan completed.\n");
+    printf("Memory fill and verification completed successfully.\n");
     return EXIT_SUCCESS;
 }
