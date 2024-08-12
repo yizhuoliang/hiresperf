@@ -1,14 +1,11 @@
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
-BUILD_DIR := build
+PWD := $(shell pwd)
 
 obj-m += hrperf.o
 hrperf-objs := ./src/buffer.o ./src/log.o ./src/hrperf.o
 
 all:
-	@mkdir -p $(BUILD_DIR)
-	@cp -r src/* $(BUILD_DIR)
-	@cp $(shell pwd)/Makefile $(BUILD_DIR)
-	$(MAKE) -C $(KERNELDIR) M=$(BUILD_DIR) modules
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 clean:
-	$(MAKE) -C $(KERNELDIR) M=$(BUILD_DIR) clean
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
