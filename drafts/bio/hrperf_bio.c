@@ -17,7 +17,7 @@ static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
 }
 
 static int handler_ret(struct kretprobe_instance *ri, struct pt_regs *regs) {
-    int ret_val = regs_return_value(regs);
+    int ret_val = (int)regs->ax;
     printk(KERN_INFO "submit_bio returned with %d\n", ret_val);
     return 0;
 }
