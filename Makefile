@@ -5,6 +5,9 @@ obj-m += hrperf.o
 hrperf-objs := ./src/buffer.o ./src/log.o ./src/hrperf.o
 
 all:
+	@mkdir -p $(BUILD_DIR)
+	@cp -r src/* $(BUILD_DIR)
+	@cp $(shell pwd)/Makefile $(BUILD_DIR)
 	$(MAKE) -C $(KERNELDIR) M=$(BUILD_DIR) modules
 
 clean:
