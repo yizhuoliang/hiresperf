@@ -60,7 +60,7 @@ int hrp_bpf_init_log_and_programs() {
     }
 
     if (HRP_BPF_ENABLE_BLK) {
-        prog_blk_start = bpf_object__find_program_by_name(obj, "kprobe_blk");
+        prog_blk_start = bpf_object__find_program_by_name(obj, "kprobe_blk_mq_start_request");
     }
     return 0;
 }
