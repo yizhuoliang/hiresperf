@@ -135,7 +135,7 @@ int kprobe_blk_mq_start_request(struct pt_regs *ctx) {
 
     RB_RESERVE(e);
     
-    unsigned int len = (unsinged int)((char*)req + 10);
+    unsigned int len = (unsigned int)((char*)req + 10);
     // TODO: here we don't really distinguish R or W now
     SET_EVENT_FIELDS(e, HRP_BPF_EVENT_BLKIO_READ_END, (unsigned long long)len, req);
 
