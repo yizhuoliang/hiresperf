@@ -25,7 +25,7 @@ def parse_log_file(filepath):
     
     # Sort entries by tid and write to respective files
     for entry in entries:
-        ts_ns, pid, tid, event_type, size_or_ret, rbp_or_bio_addr = entry
+        ts_ns, pid, tid, event_type, size_or_ret, rbp_or_req_addr = entry
         
         # Check if event type is known, else print it as an unsigned int
         event_name = event_types.get(event_type, f"UNKNOWN EVENT {event_type}")

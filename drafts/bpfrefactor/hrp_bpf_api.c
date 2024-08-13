@@ -15,11 +15,13 @@ static struct bpf_object *obj = NULL;
 static struct bpf_program *prog_tcp_out_start = NULL, *prog_tcp_out_end = NULL,
                          *prog_tcp_in_start = NULL, *prog_tcp_in_end = NULL,
                          *prog_udp_out_start = NULL, *prog_udp_out_end = NULL,
-                         *prog_udp_in_start = NULL, *prog_udp_in_end = NULL;
+                         *prog_udp_in_start = NULL, *prog_udp_in_end = NULL,
+                         *prog_blk_start = NULL;
 static struct bpf_link *link_tcp_out_start = NULL, *link_tcp_out_end = NULL,
                        *link_tcp_in_start = NULL, *link_tcp_in_end = NULL,
                        *link_udp_out_start = NULL, *link_udp_out_end = NULL,
-                       *link_udp_in_start = NULL, *link_udp_in_end = NULL;
+                       *link_udp_in_start = NULL, *link_udp_in_end = NULL,
+                       *link_blk_start = NULL;
 static struct ring_buffer *rb = NULL;
 static void *log_base = NULL;
 static volatile bool running = true;
@@ -55,6 +57,10 @@ int hrp_bpf_init_log_and_programs() {
         prog_udp_out_end = bpf_object__find_program_by_name(obj, "kretprobe_udp_sendmsg");
         prog_udp_in_start = bpf_object__find_program_by_name(obj, "kprobe_udp_recvmsg");
         prog_udp_in_end = bpf_object__find_program_by_name(obj, "kretprobe_udp_recvmsg");
+    }
+
+    if (HRP_BPF_ENABLE_BLK) {
+        prog_blk_start = bpf_object__find_program_by_name(obj, "kprobe_blk")
     }
     return 0;
 }
@@ -123,6 +129,7 @@ void hrp_bpf_stop() {
     if (link_udp_out_end) bpf_link__destroy(link_udp_out_end);
     if (link_udp_in_start) bpf_link__destroy(link_udp_in_start);
     if (link_udp_in_end) bpf_link__destroy(link_udp_in_end);
+    if (link_blk_start) bpf_link__destroy(link_blk_start);
     if (obj) bpf_object__close(obj);
     if (log_base) hrp_bpf_log_cleanup(log_base);
 }

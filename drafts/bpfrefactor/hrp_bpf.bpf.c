@@ -118,31 +118,25 @@ int kretprobe_udp_recvmsg(struct pt_regs *ctx) {
 
     RB_RESERVE(e);
 
-    // RDX for size, RBP for identification
+    // RAX for return val, RBP for identification
     SET_EVENT_FIELDS(e, HRP_BPF_EVENT_UDP_IN_END, ctx->rax, ctx->rbp);
 
     RB_SUBMIT(e);
     return 0;
 }
 
-// SEC("kprobe/submit_bio")
-// int bpf_prog_submit_bio(struct pt_regs *ctx) {
-//     struct bio *bio = GET_BIO(ctx, rsi);
-    
-//     struct hrp_bpf_event *e;
+SEC("kprobe/blk_account_io_start")
+int kprobe_block_io_start(struct pt_regs *ctx, struct request *req) {
+    struct hrp_bpf_event *e;
 
-//     RB_RESERVE(e);
-
-//     if (bio_op(bio) == REQ_OP_READ) {
-//         // READ
-//         SET_EVENT_FIELDS(e, HRP_BPF_EVENT_BLKIO_READ_START, (0UL | (bio->bi_iter.bi_size)), bio);
-//     } else {
-//         // WRITE
-//         SET_EVENT_FIELDS(e, HRP_BPF_EVENT_BLKIO_WRITE_START, (0UL | (bio->bi_iter.bi_size)), bio);
-//     }
+    RB_RESERVE(e);
     
-//     return 0;
-// }
+    // TODO: here we don't really distinguish R or W now
+    SET_EVENT_FIELDS(e, HRP_BPF_EVENT_BLKIO_READ_END, (unsigned long long)req->__data_len, req);
+
+    RB_SUBMIT(e);
+    return 0;
+}
 
 // SEC("kprobe/bio_endio")
 // int bpf_prog_bio_endio(struct pt_regs *ctx) {
