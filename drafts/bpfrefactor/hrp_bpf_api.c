@@ -77,6 +77,8 @@ void *hrp_bpf_attach_and_poll(void *arg) {
     if (prog_udp_in_start) link_udp_in_start = bpf_program__attach(prog_udp_in_start);
     if (prog_udp_in_end) link_udp_in_end = bpf_program__attach(prog_udp_in_end);
 
+    if (prog_blk_start) link_blk_start = bpf_program__attach(prog_blk_start);
+
     // initialize ring buffer
     struct bpf_map *map = bpf_object__find_map_by_name(obj, "hrp_bpf_rb_map");
     int map_fd = bpf_map__fd(map);
