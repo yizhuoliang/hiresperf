@@ -129,7 +129,7 @@ SEC("kprobe/blk_mq_start_request")
 int kprobe_blk_mq_start_request(struct pt_regs *ctx) {
     // RDI for the request
     struct request *req = (struct request *)ctx->rdi;
-    if (!rq) return 0;
+    if (!req) return 0;
 
     struct hrp_bpf_event *e;
 
