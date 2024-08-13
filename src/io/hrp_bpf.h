@@ -35,14 +35,14 @@ struct hrp_bpf_event {
 #define RB_SUBMIT(E) \
     bpf_ringbuf_submit(E, 0)
 
-#define SET_EVENT_FIELDS(E, TYPE, SIZE_OR_RET, rbp_or_req_addr) \
+#define SET_EVENT_FIELDS(E, TYPE, SIZE_OR_RET, RBP_OR_REQ_ADDR) \
     E->ts_ns = bpf_ktime_get_ns(); \
     unsigned long long pid_tgid = bpf_get_current_pid_tgid(); \
     E->pid = pid_tgid >> 32; \
     E->tid = pid_tgid & 0xFFFFFFFF; \
     E->event_type = TYPE; \
     E->size_or_ret = (unsigned int)SIZE_OR_RET; \
-    E->rbp_or_req_addr = (unsigned long long)rbp_or_req_addr
+    E->rbp_or_req_addr = (unsigned long long)RBP_OR_REQ_ADDR
 
 #define GET_BIO(CTX, BIO_REGISTER) \
     (struct bio *)(ctx->rsi); \
