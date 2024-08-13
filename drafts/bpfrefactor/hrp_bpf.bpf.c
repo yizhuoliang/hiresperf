@@ -126,7 +126,11 @@ int kretprobe_udp_recvmsg(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/blk_mq_start_request")
-int kprobe_blk_mq_start_request(struct pt_regs *ctx, struct request *req) {
+int kprobe_blk_mq_start_request(struct pt_regs *ctx) {
+    // RDI for the request
+    struct request *req = (struct request *)ctx->rdi;
+    if (!rq) return 0;
+
     struct hrp_bpf_event *e;
 
     RB_RESERVE(e);
