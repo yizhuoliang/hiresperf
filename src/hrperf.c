@@ -65,12 +65,12 @@ static int hrperf_per_cpu_poller(void *arg) {
         }
 
         tick.kts = ktime_get();
-        // tick.tsc = read_tsc();
-        // rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
-        // rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
-        // rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
+        tick.tsc = read_tsc();
+        rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
+        rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
+        rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
 
-        // enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
+        enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
         usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW, HRP_PMC_POLL_INTERVAL_US_HIGH);
     }
 
