@@ -45,19 +45,6 @@ static inline __attribute__((always_inline)) uint64_t read_tsc(void)
   return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
-static inline __attribute__((always_inline)) void read_msrs(HrperfTick tick) {
-    unsigned int low, high;
-    // Read Fixed CTR1
-    asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(MSR_IA32_FIXED_CTR1));
-    tick.cpu_unhalt = ((uint64_t)high << 32) | low;
-    // Read PMC0
-    asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(MSR_IA32_PMC0));
-    tick.llc_misses = ((uint64_t)high << 32) | low;
-    // Read PMC1
-    asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(MSR_IA32_PMC1));
-    tick.sw_prefetch = ((uint64_t)high << 32) | low;
-}
-
 // Per-cpu thread function for polling the PMCs
 static int hrperf_per_cpu_poller(void *arg) {
     // enable the counters
@@ -78,11 +65,10 @@ static int hrperf_per_cpu_poller(void *arg) {
         }
 
         tick.kts = ktime_get();
-        tick.tsc = read_tsc();
+        // tick.tsc = read_tsc();
         // rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
         // rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
         // rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
-        read_msrs(tick);
 
         enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
         usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW, HRP_PMC_POLL_INTERVAL_US_HIGH);
@@ -144,7 +130,7 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             printk(KERN_INFO "hrperf: Monitoring resumed\n");
         }
         break;
-    case HRP_PMC_IOC_PAUSE:
+    case HRP_IOC_PAUSE:
         if (hrperf_running) {
             hrperf_running = false;
             // Signal threads to pause
