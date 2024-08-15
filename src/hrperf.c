@@ -45,6 +45,19 @@ static inline __attribute__((always_inline)) uint64_t read_tsc(void)
   return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
+static inline __attribute__((always_inline)) void read_msrs(struct HrperfTick *tick) {
+    unsigned int low, high;
+    // Read Fixed CTR1
+    asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(MSR_IA32_FIXED_CTR1));
+    tick->cpu_unhalt = ((uint64_t)high << 32) | low;
+    // Read PMC0
+    asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(MSR_IA32_PMC0));
+    tick->llc_misses = ((uint64_t)high << 32) | low;
+    // Read PMC1
+    asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(MSR_IA32_PMC1));
+    tick->sw_prefetch = ((uint64_t)high << 32) | low;
+}
+
 // Per-cpu thread function for polling the PMCs
 static int hrperf_per_cpu_poller(void *arg) {
     // enable the counters
@@ -66,9 +79,10 @@ static int hrperf_per_cpu_poller(void *arg) {
 
         tick.kts = ktime_get();
         tick.tsc = read_tsc();
-        rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
-        rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
-        rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
+        // rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
+        // rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
+        // rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
+        read_msrs(&tick);
 
         enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
         usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW, HRP_PMC_POLL_INTERVAL_US_HIGH);
