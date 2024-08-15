@@ -82,7 +82,7 @@ static int hrperf_per_cpu_poller(void *arg) {
         // rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
         // rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
         // rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
-        read_msrs&tick);
+        read_msrs(tick);
 
         enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
         usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW, HRP_PMC_POLL_INTERVAL_US_HIGH);
