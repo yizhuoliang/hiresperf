@@ -5,26 +5,37 @@
 #include <sched.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <time.h>  // Include time.h for clock_gettime
 
 #include "hrperf_api.h"
 
 #define REGION_SIZE (1L * 1024 * 1024 * 1024)  // 1GB
 
 void* fill_memory(void* arg) {
-    hrp_bpf_start();
+    struct timespec start_time, end_time;  // Variables to store start and end times
+
+    //hrp_bpf_start();
+    clock_gettime(CLOCK_MONOTONIC, &start_time);  // Get start time
     hrperf_start();
+
     uint8_t* region = (uint8_t*)arg;
     for (size_t i = 0; i < REGION_SIZE; i++) {
-        // Write the magic number 231 to each byte
-        region[i] = 231;
+        region[i] = 231;  // Write the magic number 231 to each byte
     }
+
     hrperf_pause();
-    hrp_bpf_stop();
+    clock_gettime(CLOCK_MONOTONIC, &end_time);  // Get end time
+    //hrp_bpf_stop();
+
+    // Calculate the elapsed time in milliseconds
+    long duration_ms = (end_time.tv_sec - start_time.tv_sec) * 1000 + (end_time.tv_nsec - start_time.tv_nsec) / 1000000;
+    printf("Operation took %ld milliseconds.\n", duration_ms);  // Print the duration
+
     return NULL;
 }
 
 int main() {
-    // Allocate and zero-initialize 4GB region
+    // Allocate and zero-initialize 1GB region
     uint8_t* region = (uint8_t*)malloc(REGION_SIZE);
     if (!region) {
         perror("Failed to allocate memory");
@@ -42,7 +53,7 @@ int main() {
     // Initialize thread attributes
     pthread_attr_init(&attr);
 
-    // Set CPU affinity to core 2
+    // Set CPU affinity to core 4
     CPU_ZERO(&cpuset);
     CPU_SET(4, &cpuset);
     pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
