@@ -45,7 +45,7 @@ static inline __attribute__((always_inline)) uint64_t read_tsc(void)
   return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
-static inline __attribute__((always_inline)) void read_msrs(struct HrperfTick tick) {
+static inline __attribute__((always_inline)) void read_msrs(HrperfTick tick) {
     unsigned int low, high;
     // Read Fixed CTR1
     asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(MSR_IA32_FIXED_CTR1));
