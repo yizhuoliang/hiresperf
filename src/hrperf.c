@@ -130,7 +130,7 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             printk(KERN_INFO "hrperf: Monitoring resumed\n");
         }
         break;
-    case HRP_IOC_PAUSE:
+    case HRP_PMC_IOC_PAUSE:
         if (hrperf_running) {
             hrperf_running = false;
             // Signal threads to pause
