@@ -11,6 +11,7 @@
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/ktime.h>
+#include <linux/smp.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -18,11 +19,12 @@
 #include "pmc.h"
 #include "log.h"
 
-// for the logger and pollers
+// for the poller, logger, and buffers
 static DEFINE_PER_CPU(HrperfRingBuffer, per_cpu_buffer);
-static DEFINE_PER_CPU(struct task_struct *, per_cpu_thread);
+static struct task_struct *poller_thread;
 static struct task_struct *logger_thread;
 struct file *log_file;
+struct cpumask hrp_selected_cpus;
 
 // for the char device
 static int major_number;
@@ -38,15 +40,7 @@ static struct file_operations fops = {
 
 static bool hrperf_running = false;
 
-static inline __attribute__((always_inline)) uint64_t read_tsc(void)
-{
-  uint32_t a, d;
-  asm volatile("rdtsc" : "=a" (a), "=d" (d));
-  return ((uint64_t)a) | (((uint64_t)d) << 32);
-}
-
-// Per-cpu thread function for polling the PMCs
-static int hrperf_per_cpu_poller(void *arg) {
+static void hrperf_pmc_enable_and_esel(void *info) {
     // enable the counters
     wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0x030); // fixed counter 1 for cpu unhalt
     wrmsrl(MSR_IA32_GLOBAL_CTRL, 1UL | (1UL << 1)  | (1UL << 33)); // arch 0,1, fixed 1
@@ -54,34 +48,36 @@ static int hrperf_per_cpu_poller(void *arg) {
     // make event selections
     wrmsrl(MSR_IA32_PERFEVTSEL0, PMC_LLC_MISSES_FINAL);
     wrmsrl(MSR_IA32_PERFEVTSEL1, PMC_SW_PREFETCH_ANY_SKYLAKE_FINAL);
+}
 
+// Function to be called on each CPU by smp_call_function_many
+static void hrperf_poller_func(void *info) {
     HrperfTick tick;
+    tick.kts = ktime_get();
+    tick.tsc = read_tsc();
+    rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
+    rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
+    rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
 
-    // start polling
+    enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
+}
+
+// Single poller thread function for initiating the smp_call_function_many
+static int hrperf_poller_thread(void *arg) {
     while (!kthread_should_stop()) {
         if (!hrperf_running) {
             set_current_state(TASK_INTERRUPTIBLE);
             schedule();  // pause execution here
         }
 
-        tick.kts = ktime_get();
-        tick.tsc = read_tsc();
-        rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
-        rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
-        rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
-
-        enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
+        smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func, NULL, 1);
         usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW, HRP_PMC_POLL_INTERVAL_US_HIGH);
     }
-
-    // reset the control MSRs to zeros
-    wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0UL);
-    wrmsrl(MSR_IA32_GLOBAL_CTRL, 0UL);
     return 0;
 }
 
 // Logger thread function
-static int hrperf_pmc_logger(void *arg) {
+static int hrperf_logger_thread(void *arg) {
     while (!kthread_should_stop()) {
         if (!hrperf_running) {
             set_current_state(TASK_INTERRUPTIBLE);
@@ -101,50 +97,20 @@ static int hrperf_pmc_logger(void *arg) {
     return 0;
 }
 
-// IOCTL function for start/stop the logger/pollers
+// IOCTL function to start/stop the logger/pollers
 static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
-    int cpu;
-
     switch (cmd) {
     case HRP_PMC_IOC_START:
         if (!hrperf_running) {
             hrperf_running = true;
-            // Start all paused threads
-            for_each_possible_cpu(cpu) {
-                if (HRP_PMC_CPU_SELECTION_MASK & (1UL << cpu)) {
-                    struct task_struct *t = per_cpu(per_cpu_thread, cpu);
-                    if (t) {
-                        wake_up_process(t);
-                    } else {
-                        printk(KERN_ALERT "hrperf: guess what? a puller thread corrupted\n");
-                        return -1;
-                    }
-                }
-            }
-            if (logger_thread) {
-                wake_up_process(logger_thread);
-            } else {
-                printk(KERN_ALERT "hrperf: guess what? the logger thread corrupted\n");
-                return -1;
-            }
+            wake_up_process(poller_thread);
+            wake_up_process(logger_thread);
             printk(KERN_INFO "hrperf: Monitoring resumed\n");
         }
         break;
     case HRP_PMC_IOC_PAUSE:
         if (hrperf_running) {
             hrperf_running = false;
-            // Signal threads to pause
-            for_each_possible_cpu(cpu) {
-                if (HRP_PMC_CPU_SELECTION_MASK & (1UL << cpu)) {
-                    struct task_struct *t = per_cpu(per_cpu_thread, cpu);
-                    if (t) {
-                        send_sig(SIGSTOP, t, 0);
-                    }
-                }
-            }
-            if (logger_thread) {
-                send_sig(SIGSTOP, logger_thread, 0);
-            }
             printk(KERN_INFO "hrperf: Monitoring paused\n");
         }
         break;
@@ -193,47 +159,42 @@ static int __init hrp_pmc_init(void) {
     }
     printk(KERN_INFO "hrperf: device setup done\n");
 
-    // step 2: init poller threads
+    // step 2.1: init selected cpus
+    cpumask_clear(&hrp_selected_cpus);
     int cpu;
     for_each_possible_cpu(cpu) {
         if (HRP_PMC_CPU_SELECTION_MASK & (1UL << cpu)) {
-            struct task_struct *thread;
-            init_ring_buffer(per_cpu_ptr(&per_cpu_buffer, cpu));
-            thread = kthread_create_on_node(hrperf_per_cpu_poller, NULL, cpu_to_node(cpu), "per_cpu_poller_thread_%d", cpu);
-            kthread_bind(thread, cpu);
-            wake_up_process(thread);
-            per_cpu(per_cpu_thread, cpu) = thread;
+            cpumask_set_cpu(cpu, &hrp_selected_cpus);
         }
     }
 
-    // step 3: init log file
-    log_file = hrperf_init_log_file();
-    if (log_file == NULL) {
-        printk(KERN_ERR "Failed to initialize log file\n");
-        // Handle the error appropriately
+    // step 2.2: enable the counters and make event selections
+    smp_call_function_many(&hrp_selected_cpus, hrperf_pmc_enable_and_esel, NULL, 1);
+
+    // Initialize poller thread
+    poller_thread = kthread_run(hrperf_poller_thread, NULL, "poller_thread");
+    if (IS_ERR(poller_thread)) {
+        printk(KERN_ERR "Failed to create the poller thread\n");
+        return PTR_ERR(poller_thread);
     }
 
-    // step 4: init logger thread
-    logger_thread = kthread_run(hrperf_pmc_logger, NULL, "logger_thread");
-    kthread_bind(logger_thread, HRP_PMC_LOGGER_CPU);
+    // Initialize logger thread
+    logger_thread = kthread_run(hrperf_logger_thread, NULL, "logger_thread");
+    if (IS_ERR(logger_thread)) {
+        printk(KERN_ERR "Failed to create the logger thread\n");
+        return PTR_ERR(logger_thread);
+    }
 
     return 0;
 }
 
 static void __exit hrp_pmc_exit(void) {
-
-    int cpu;
-    for_each_possible_cpu(cpu) {
-        if (HRP_PMC_CPU_SELECTION_MASK & (1UL << cpu)) {
-            struct task_struct *t = per_cpu(per_cpu_thread, cpu);
-            if (t) {
-                kthread_stop(t);
-            }
-        }
-    }
-
     if (logger_thread) {
         kthread_stop(logger_thread);
+    }
+
+    if (poller_thread) {
+        kthread_stop(poller_thread);
     }
 
     hrperf_close_log_file(log_file);
