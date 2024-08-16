@@ -184,6 +184,13 @@ static int __init hrp_pmc_init(void) {
         return PTR_ERR(poller_thread);
     }
 
+    // step 3: init log file
+    log_file = hrperf_init_log_file();
+    if (log_file == NULL) {
+        printk(KERN_ERR "Failed to initialize log file\n");
+        // Handle the error appropriately
+    }
+    
     // Initialize logger thread
     logger_thread = kthread_run(hrperf_logger_thread, NULL, "logger_thread");
     if (IS_ERR(logger_thread)) {
