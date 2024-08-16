@@ -25,6 +25,7 @@ static struct task_struct *poller_thread;
 static struct task_struct *logger_thread;
 struct file *log_file;
 struct cpumask hrp_selected_cpus;
+static bool hrperf_running = false;
 
 // for the char device
 static int major_number;
@@ -38,7 +39,12 @@ static struct file_operations fops = {
     .unlocked_ioctl = hrperf_ioctl
 };
 
-static bool hrperf_running = false;
+static inline __attribute__((always_inline)) uint64_t read_tsc(void)
+{
+  uint32_t a, d;
+  asm volatile("rdtsc" : "=a" (a), "=d" (d));
+  return ((uint64_t)a) | (((uint64_t)d) << 32);
+}
 
 static void hrperf_pmc_enable_and_esel(void *info) {
     // enable the counters
