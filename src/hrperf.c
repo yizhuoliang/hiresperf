@@ -197,6 +197,7 @@ static int __init hrp_pmc_init(void) {
         printk(KERN_ERR "Failed to create the logger thread\n");
         return PTR_ERR(logger_thread);
     }
+    kthread_bind(logger_thread, HRP_PMC_LOGGER_CPU);
 
     return 0;
 }
