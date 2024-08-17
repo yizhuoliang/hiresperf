@@ -14,7 +14,7 @@ def parse_timehist(log_filename, executable_name):
                 tid_pid = parts[2].split('[')[1][:-1]  # Extract thread ID or PID
                 runtime = float(parts[5]) * 1e9  # Convert runtime to nanoseconds
                 end_timestamp = timestamp + int(runtime)
-                core_number = parts[1].strip('[]')  # Extract core number
+                core_number = int(parts[1].strip('[]'))  # Extract core number
 
                 # Handle TID/PID formatting
                 if '/' in tid_pid:
