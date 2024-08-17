@@ -14,6 +14,7 @@ def parse_timehist(log_filename, executable_name):
                 tid_pid = parts[2].split('[')[1][:-1]  # Extract thread ID or PID
                 runtime = float(parts[5]) * 1e9  # Convert runtime to nanoseconds
                 end_timestamp = timestamp + int(runtime)
+                core_number = parts[1].strip('[]')  # Extract core number
 
                 # Handle TID/PID formatting
                 if '/' in tid_pid:
@@ -24,7 +25,7 @@ def parse_timehist(log_filename, executable_name):
                 # Initialize or append the interval
                 if tid not in thread_intervals:
                     thread_intervals[tid] = []
-                thread_intervals[tid].append((timestamp, end_timestamp))
+                thread_intervals[tid].append([core_number, timestamp, end_timestamp])
 
     # Write output to a JSON file
     with open(executable_name + '_intervals.json', 'w') as outfile:
@@ -33,6 +34,6 @@ def parse_timehist(log_filename, executable_name):
     print(f"Intervals written to {executable_name}_intervals.json")
 
 # Example usage
-log_filename = 'perf_timehist_output.txt'  # The file with perf sched timehist data
-executable_name = 'cpu_load'  # The executable to filter by
+log_filename = 'timehist.txt'  # The file with perf sched timehist data
+executable_name = 'lucene-server'  # The executable to filter by
 parse_timehist(log_filename, executable_name)
