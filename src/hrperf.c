@@ -59,7 +59,7 @@ static void hrperf_pmc_enable_and_esel(void *info) {
 // Function to be called on each CPU by smp_call_function_many
 static void hrperf_poller_func(void *info) {
     HrperfTick tick;
-    tick.kts = ktime_get();
+    tick.kts = ktime_get_raw();
     tick.tsc = read_tsc();
     rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
     rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
