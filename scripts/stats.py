@@ -49,9 +49,8 @@ def process_log_data(ticks, interested_funcs, cycles_overhead_per_tick, mem_over
 if __name__ == "__main__":
     filepath = './merged.txt'
     interested_funcs = [
-        'readVInt() (SegmentTermDocs.cpp:150:45)',
+        'collect(doc) (TermScorer.cpp:54:22)',
         'read(docs, freqs) (TermScorer.cpp:57:38)',
-        'collect(doc) (TermScorer.cpp:54:22)'
     ]
     cycles_overhead_per_tick = 6341.928
     mem_overhead_per_tick = 345.128
