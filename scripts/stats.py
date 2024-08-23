@@ -6,51 +6,50 @@ def read_log_file(filepath):
     ticks = content.split('---\n')
     return ticks
 
-def process_log_data(ticks, interested_funcs, cycles_overhead_per_tick, mem_overhead_per_tick):
-    results = {func: {'total_mem_per_cycle': 0, 'count': 0, 'total_perf_ticks': 0} for func in interested_funcs}
+def process_log_data(ticks, interested_funcs, cycles_overhead, mem_overhead):
+    results = {func: {'total_mem_per_cycle': 0, 'total_perf_ticks': 0} for func in interested_funcs}
     active_func = None
-    cumulative_performance = []
 
     for tick in ticks:
         if 'STACK_SAMPLE' in tick:
-            found_func = any(func in tick for func in interested_funcs)
-            if found_func:
-                active_func = next((func for func in interested_funcs if func in tick), None)
-                if active_func:
-                    # Reset the cumulative performance data for a new function call tick
-                    cumulative_performance = []
+            # Determine if current tick is related to an interested function
+            found_func = next((func for func in interested_funcs if func in tick), None)
+            active_func = found_func if found_func else None
         elif 'CPU usage:' in tick and active_func:
-            # Extract performance data
+            # Extract performance data if there is an active interested function
             match = re.search(r'CPU usage: (\d+\.\d+), Memory bandwidth: (\d+\.\d+) Byte/us, Cycles Delta: (\d+), Mem Delta: (\d+) Bytes', tick)
             if match:
                 cpu_usage, mem_bw, cycles_delta, mem_delta = map(float, match.groups())
-                adjusted_cycles = cycles_delta - cycles_overhead_per_tick
-                adjusted_mem = mem_delta - mem_overhead_per_tick
-                if adjusted_cycles > 0:  # To avoid division by zero or negative values
+                adjusted_cycles = cycles_delta - cycles_overhead
+                adjusted_mem = mem_delta - mem_overhead
+                if adjusted_cycles > 0:  # Avoid division by zero
                     mem_per_cycle = adjusted_mem / adjusted_cycles
-                    cumulative_performance.append(mem_per_cycle)
+                    results[active_func]['total_mem_per_cycle'] += mem_per_cycle
                     results[active_func]['total_perf_ticks'] += 1
         else:
-            if active_func and cumulative_performance:
-                # Finalize the function's performance tick group
-                average_mem_per_cycle = sum(cumulative_performance) / len(cumulative_performance) if cumulative_performance else 0
-                results[active_func]['total_mem_per_cycle'] += average_mem_per_cycle
-                results[active_func]['count'] += 1
+            # Reset active function when encountering a non-performance, non-interested tick
             active_func = None
 
-    # Calculate final averages and print results
+    # Calculate final averages
     for func, data in results.items():
-        average_over_counts = data['total_mem_per_cycle'] / data['count'] if data['count'] > 0 else 0
+        if data['total_perf_ticks'] > 0:
+            average_mem_per_cycle = data['total_mem_per_cycle'] / data['total_perf_ticks']
+            results[func]['average_mem_per_cycle'] = average_mem_per_cycle
+        else:
+            results[func]['average_mem_per_cycle'] = 0
+
+    # Print results
+    for func, data in results.items():
         print(f"Function: {func}")
-        print(f"Average Memory Consumption per Cycle: {average_over_counts:.6f}")
-        print(f"Occurrences: {data['count']}")
-        print(f"Total Performance Ticks Considered: {data['total_perf_ticks']}\n")
+        print(f"Average Memory Consumption per Cycle: {data['average_mem_per_cycle']:.6f}")
+        print(f"Total Performance Ticks Considered: {data['total_perf_ticks']}")
+
 
 if __name__ == "__main__":
     filepath = './merged.txt'
     interested_funcs = [
         'collect(doc) (TermScorer.cpp:54:22)',
-        'read(docs, freqs) (TermScorer.cpp:57:38)',
+        'read(docs, freqs) (TermScorer.cpp:57:38)'
     ]
     cycles_overhead_per_tick = 6341.928
     mem_overhead_per_tick = 345.128
