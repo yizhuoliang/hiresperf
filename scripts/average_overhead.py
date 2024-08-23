@@ -30,8 +30,8 @@ def calculate_averages(file_path, cpu_id):
                 else:
                     # Calculate deltas
                     cycles_delta = cpu_unhalt - last_cpu_unhalt
-                    llc_misses_delta = llc_misses - last_llc_misses
-                    sw_prefetch_delta = sw_prefetch - last_sw_prefetch
+                    llc_misses_delta = (llc_misses - last_llc_misses) * 64
+                    sw_prefetch_delta = (sw_prefetch - last_sw_prefetch) * 64
                     mem_delta = llc_misses_delta + sw_prefetch_delta
 
                     # Accumulate values
