@@ -38,18 +38,24 @@ def parse_hrperf_log_to_json(file_path, output_json_path):
             tsc_elapsed_since_last = tsc - state['last_tsc']
             
             # Calculate CPU usage
-            cpu_usage = (cpu_unhalt - state['last_cpu_unhalt']) / tsc_elapsed_since_last if tsc_elapsed_since_last > 0 else 0
-            
+            cycles_delta = cpu_unhalt - state['last_cpu_unhalt']
+            cpu_usage = cycles_delta / tsc_elapsed_since_last if tsc_elapsed_since_last > 0 else 0
+
             # Calculate estimated memory bandwidth usage
-            llc_misses_rate = (llc_misses - state['last_llc_misses']) / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
-            sw_prefetch_rate = (sw_prefetch - state['last_sw_prefetch']) / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
+            llc_misses_delta = llc_misses - state['last_llc_misses']
+            sw_prefetch_delta = sw_prefetch - state['last_sw_prefetch']
+            mem_delta = llc_misses_delta + sw_prefetch_delta
+            llc_misses_rate = llc_misses_delta / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
+            sw_prefetch_rate = sw_prefetch_delta / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
             memory_bandwidth = (llc_misses_rate + sw_prefetch_rate) * 64  # in bytes per microsecond
             
             # Append data entry for this CPU
             data_entries[cpu_id].append({
                 'ktime': ktime,
                 'cpu_usage': cpu_usage,
-                'memory_bandwidth': memory_bandwidth
+                'memory_bandwidth': memory_bandwidth,
+                'cycles_delta': cycles_delta,
+                'mem_delta': mem_delta
             })
             
             # Update the last state for this CPU
