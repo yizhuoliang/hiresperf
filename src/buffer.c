@@ -23,16 +23,3 @@ inline __attribute__((always_inline)) void enqueue(HrperfRingBuffer *rb, HrperfT
         rb->tail = (rb->tail + 1) % HRP_PMC_BUFFER_SIZE;
     }
 }
-
-inline __attribute__((always_inline)) void print_and_clear(HrperfRingBuffer *rb) {
-    while (rb->head != rb->tail) {
-        printk(KERN_INFO "Ktime_t: %llu, LLC Misses: %llu, CPU Unhalt: %llu, SW Prefetch: %llu\n",
-                // rb->buffer[rb->head].tsc,
-                rb->buffer[rb->head].kts,
-                rb->buffer[rb->head].llc_misses,
-                rb->buffer[rb->head].cpu_unhalt,
-                rb->buffer[rb->head].sw_prefetch);
-        rb->head = (rb->head + 1) % HRP_PMC_BUFFER_SIZE;
-    }
-    printk(KERN_INFO "Buffer cleared\n");
-}
