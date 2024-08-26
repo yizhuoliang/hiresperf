@@ -1,10 +1,13 @@
 import struct
 import json
 
-def parse_hrperf_log_to_json(file_path, output_json_path):
+def parse_hrperf_log_to_json(file_path, output_json_path, max_frequency_ghz):
     # Define the struct format for parsing
     entry_format = 'iqQQQQ'
     entry_size = struct.calcsize(entry_format)
+
+    # Convert max frequency GHz to cycles per microsecond
+    tsc_per_us = max_frequency_ghz * 1000
     
     # Dictionary to store the last state and all data entries for each CPU
     last_state = {}
@@ -15,53 +18,45 @@ def parse_hrperf_log_to_json(file_path, output_json_path):
             data = f.read(entry_size)
             if not data:
                 break
-            
-            cpu_id, ktime, tsc, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)
+
+            cpu_id, ktime, stalls_l3_miss, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)
             
             if cpu_id not in data_entries:
-                # Initialize storage for this CPU
                 data_entries[cpu_id] = []
-                # Initialize the first record and first ktime for this CPU
                 last_state[cpu_id] = {
                     'first_ktime': ktime,
-                    'first_tsc': tsc,
                     'last_ktime': ktime,
-                    'last_tsc': tsc,
+                    'last_stalls_l3_miss': stalls_l3_miss,
                     'last_cpu_unhalt': cpu_unhalt,
                     'last_llc_misses': llc_misses,
                     'last_sw_prefetch': sw_prefetch
                 }
 
-            # Retrieve the previous state
             state = last_state[cpu_id]
             ktime_elapsed_since_last = ktime - state['last_ktime']
-            tsc_elapsed_since_last = tsc - state['last_tsc']
-            
-            # Calculate CPU usage
-            cycles_delta = cpu_unhalt - state['last_cpu_unhalt']
-            cpu_usage = cycles_delta / tsc_elapsed_since_last if tsc_elapsed_since_last > 0 else 0
+            us_elapsed_since_last = ktime_elapsed_since_last / 1e3  # convert from ns to us
 
-            # Calculate estimated memory bandwidth usage
-            llc_misses_delta_cachelines = llc_misses - state['last_llc_misses']
-            sw_prefetch_delta_cachelines = sw_prefetch - state['last_sw_prefetch']
-            mem_delta = (llc_misses_delta_cachelines + sw_prefetch_delta_cachelines) * 64
-            llc_misses_rate = llc_misses_delta_cachelines / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
-            sw_prefetch_rate = sw_prefetch_delta_cachelines / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
-            memory_bandwidth = (llc_misses_rate + sw_prefetch_rate) * 64  # in bytes per microsecond
-            
+            # Calculate CPU usage and stalls per us
+            cpu_usage = (cpu_unhalt - state['last_cpu_unhalt']) / (tsc_per_us * us_elapsed_since_last) if us_elapsed_since_last > 0 else 0
+            stalls_per_us = (stalls_l3_miss - state['last_stalls_l3_miss']) / us_elapsed_since_last if us_elapsed_since_last > 0 else 0
+
+            # Calculate memory bandwidth metrics
+            llc_misses_delta = llc_misses - state['last_llc_misses']
+            sw_prefetch_delta = sw_prefetch - state['last_sw_prefetch']
+            memory_bandwidth = (llc_misses_delta + sw_prefetch_delta) * 64 / us_elapsed_since_last if us_elapsed_since_last > 0 else 0
+
             # Append data entry for this CPU
             data_entries[cpu_id].append({
                 'ktime': ktime,
                 'cpu_usage': cpu_usage,
                 'memory_bandwidth': memory_bandwidth,
-                'cycles_delta': cycles_delta,
-                'mem_delta': mem_delta
+                'stalls_per_us': stalls_per_us
             })
             
             # Update the last state for this CPU
             state.update({
                 'last_ktime': ktime,
-                'last_tsc': tsc,
+                'last_stalls_l3_miss': stalls_l3_miss,
                 'last_cpu_unhalt': cpu_unhalt,
                 'last_llc_misses': llc_misses,
                 'last_sw_prefetch': sw_prefetch
@@ -72,4 +67,5 @@ def parse_hrperf_log_to_json(file_path, output_json_path):
         json.dump(data_entries, json_file, indent=4)
 
 if __name__ == "__main__":
-    parse_hrperf_log_to_json('/hrperf_log.bin', 'hrperf_data.json')
+    max_frequency_ghz = 3.5  # Example maximum frequency in GHz
+    parse_hrperf_log_to_json('/path/to/hrperf_log.bin', 'hrperf_data.json', max_frequency_ghz)

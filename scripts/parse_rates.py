@@ -58,7 +58,7 @@ def parse_hrperf_log(file_path, max_frequency_ghz):
             # Write the computed data to the respective file
             file_handles[cpu_id].write(f"CPU {cpu_id}: ktime={ktime}, ktAgg={ktime_elapsed_since_first}, "
                                        f"ktDelta={ktime_elapsed_since_last}, StallsRate={stalls_per_us:.6f} /us, "
-                                       f"UnhaltRate={cpu_usage:.6f}, L3MisRate={llc_misses_rate:.6f}, "
+                                       f"L3MisRate={llc_misses_rate:.6f}, "
                                        f"SWPrfRate={sw_prefetch_rate:.6f}, EstMBW={memory_bandwidth:.6f} bytes/us, "
                                        f"CPUUse={cpu_usage:.6f}\n")
 
