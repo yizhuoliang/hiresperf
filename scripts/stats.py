@@ -17,11 +17,14 @@ def process_log_data(ticks, interested_funcs, cycles_overhead, mem_overhead):
             active_func = found_func if found_func else None
         elif 'CPU usage:' in tick and active_func:
             # Extract performance data if there is an active interested function
-            match = re.search(r'CPU usage: (\d+\.\d+), Memory bandwidth: (\d+\.\d+) Byte/us, Cycles Delta: (\d+), Mem Delta: (\d+) Bytes', tick)
+            match = re.search(r"CPU usage: ([\d\.]+), Memory Delta: ([\d\.]+) Bytes, Real Cycles Delta: ([\d\.]+), Stalls Delta: ([\d\.]+)", tick)
             if match:
-                cpu_usage, mem_bw, cycles_delta, mem_delta = map(float, match.groups())
-                adjusted_cycles = cycles_delta - cycles_overhead
-                adjusted_mem = mem_delta - mem_overhead
+                cpu_usage = float(match.group(1))
+                memory_delta = float(match.group(2))
+                real_cycles_delta = float(match.group(3))
+                stalls_delta = float(match.group(4))
+                adjusted_cycles = real_cycles_delta - cycles_overhead
+                adjusted_mem = memory_delta - mem_overhead
                 if adjusted_cycles > 0:  # Avoid division by zero
                     mem_per_cycle = adjusted_mem / adjusted_cycles
                     results[active_func]['total_mem_per_cycle'] += mem_per_cycle
@@ -52,7 +55,7 @@ if __name__ == "__main__":
         'read(docs, freqs) (TermScorer.cpp:57:38)'
     ]
     cycles_overhead_per_tick = 6341.928
-    mem_overhead_per_tick = 345.128
+    mem_overhead_per_tick = 65.128
 
     ticks = read_log_file(filepath)
     process_log_data(ticks, interested_funcs, cycles_overhead_per_tick, mem_overhead_per_tick)
