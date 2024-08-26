@@ -44,13 +44,16 @@ def parse_hrperf_log_to_json(file_path, output_json_path, max_frequency_ghz):
             # Calculate memory bandwidth metrics
             llc_misses_delta = llc_misses - state['last_llc_misses']
             sw_prefetch_delta = sw_prefetch - state['last_sw_prefetch']
-            memory_bandwidth = (llc_misses_delta + sw_prefetch_delta) * 64 / us_elapsed_since_last if us_elapsed_since_last > 0 else 0
+            memory_delta = (llc_misses_delta + sw_prefetch_delta) * 64
+            memory_bandwidth = memory_delta / us_elapsed_since_last if us_elapsed_since_last > 0 else 0
 
             # Append data entry for this CPU
             data_entries[cpu_id].append({
                 'ktime': ktime,
                 'cpu_usage': cpu_usage,
                 'memory_bandwidth': memory_bandwidth,
+                'memory_delta': memory_delta,
+                'stalls_delta': stalls_delta,
                 'stalls_per_us': stalls_per_us,
                 'real_cycles_delta': (cpu_usage * max_frequency_ghz * 1000 * us_elapsed_since_last - stalls_delta)
             })

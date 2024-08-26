@@ -20,7 +20,7 @@ def read_performance_data(perf_filename, core_id):
         data = json.load(file)
         if core_id in data:
             return [
-                f"{item['ktime']} CPU usage: {item['cpu_usage']:.3f}, Memory bandwidth: {item['memory_bandwidth']:.3f} Byte/us, Real Cycles Delta: {item['real_cycles_delta']}, Mem Delta: {item['mem_delta']} Bytes, Stalls Rate: {item['stalls_per_us']}/us\n---"
+                f"{item['ktime']} CPU usage: {item['cpu_usage']:.3f}, Memory Delta: {item['memory_delta']:.3f} Bytes, Real Cycles Delta: {item['real_cycles_delta']}, Stalls Delta: {item['stalls_delta']}/us\n---"
                 for item in data[core_id]
             ]
         else:
