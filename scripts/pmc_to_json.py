@@ -38,7 +38,8 @@ def parse_hrperf_log_to_json(file_path, output_json_path, max_frequency_ghz):
 
             # Calculate CPU usage and stalls per us
             cpu_usage = (cpu_unhalt - state['last_cpu_unhalt']) / (tsc_per_us * us_elapsed_since_last) if us_elapsed_since_last > 0 else 0
-            stalls_per_us = (stalls_l3_miss - state['last_stalls_l3_miss']) / us_elapsed_since_last if us_elapsed_since_last > 0 else 0
+            stalls_delta = stalls_l3_miss - state['last_stalls_l3_miss']
+            stalls_per_us = stalls_delta / us_elapsed_since_last if us_elapsed_since_last > 0 else 0
 
             # Calculate memory bandwidth metrics
             llc_misses_delta = llc_misses - state['last_llc_misses']
@@ -50,7 +51,8 @@ def parse_hrperf_log_to_json(file_path, output_json_path, max_frequency_ghz):
                 'ktime': ktime,
                 'cpu_usage': cpu_usage,
                 'memory_bandwidth': memory_bandwidth,
-                'stalls_per_us': stalls_per_us
+                'stalls_per_us': stalls_per_us,
+                'real_cycles_delta': (cpu_usage * max_frequency_ghz * 1000 * us_elapsed_since_last - stalls_delta)
             })
             
             # Update the last state for this CPU
@@ -67,5 +69,5 @@ def parse_hrperf_log_to_json(file_path, output_json_path, max_frequency_ghz):
         json.dump(data_entries, json_file, indent=4)
 
 if __name__ == "__main__":
-    max_frequency_ghz = 3.5  # Example maximum frequency in GHz
+    max_frequency_ghz = 1.2  # Example maximum frequency in GHz
     parse_hrperf_log_to_json('/path/to/hrperf_log.bin', 'hrperf_data.json', max_frequency_ghz)
