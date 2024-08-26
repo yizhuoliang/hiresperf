@@ -73,4 +73,4 @@ def parse_hrperf_log_to_json(file_path, output_json_path, max_frequency_ghz):
 
 if __name__ == "__main__":
     max_frequency_ghz = 1.2  # Example maximum frequency in GHz
-    parse_hrperf_log_to_json('/path/to/hrperf_log.bin', 'hrperf_data.json', max_frequency_ghz)
+    parse_hrperf_log_to_json('/hrperf_log.bin', 'hrperf_data.json', max_frequency_ghz)

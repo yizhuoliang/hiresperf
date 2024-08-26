@@ -49,7 +49,7 @@ def merge_entries(log_entries, perf_entries):
     return merged
 
 def main():
-    thread_id = '67524'
+    thread_id = '116219'
     cpu_core = '20'
     log_filename = './ldb_dumped.txt'
     perf_filename = './hrperf_data.json'
