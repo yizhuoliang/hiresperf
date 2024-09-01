@@ -54,14 +54,16 @@ static void hrperf_pmc_enable_and_esel(void *info) {
     // make event selections
     wrmsrl(MSR_IA32_PERFEVTSEL0, PMC_LLC_MISSES_FINAL);
     wrmsrl(MSR_IA32_PERFEVTSEL1, PMC_SW_PREFETCH_ANY_SKYLAKE_FINAL);
-    wrmsrl(MSR_IA32_PERFEVTSEL2, PMC_CYCLE_STALLS_L3_MISS_SKYLAKE_FINAL);
+    wrmsrl(MSR_IA32_PERFEVTSEL2, PMC_CYCLE_STALLS_MEM_SKYLAKE_FINAL);
+    wrmsrl(MSR_IA32_PERFEVTSEL3, PMC_CYCLE_OUTSTANDING_MEM_SKYLAKE_FINAL);
 }
 
 // Function to be called on each CPU by smp_call_function_many
 static void hrperf_poller_func(void *info) {
     HrperfTick tick;
     tick.kts = ktime_get_raw();
-    rdmsrl(MSR_IA32_PMC2, tick.stall_llc);
+    rdmsrl(MSR_IA32_PMC2, tick.stall_mem);
+    rdmsrl(MSR_IA32_PMC3, tick.cycle_mem);
     rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
     rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
     rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);

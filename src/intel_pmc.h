@@ -31,6 +31,8 @@
 /* non-architectural pmcs has different selecto definitions for each microarchitecture */
 #define PMC_SW_PREFETCH_ANY_SKYLAKE             PMC_ESEL_ENTRY(0x32, 0x0F, 0)
 #define PMC_CYCLE_STALLS_L3_MISS_SKYLAKE        PMC_ESEL_ENTRY(0xA3, 0x06, 0x06) // https://perfmon-events.intel.com/index.html?pltfrm=skylake_server.html&evnt=CYCLE_ACTIVITY.STALLS_L3_MISS
+#define PMC_CYCLE_STALLLS_MEM_SKYLAKE           PMC_ESEL_ENTRY(0xA3, 0x14, 0x14)
+#define PMC_CYCLE_OUTSTANDING_MEM_SKYLAKE       PMC_ESEL_ENTRY(0xA3, 0x10, 0x10)
 
 /* Final composed 64 bit to put into esel register */
 #define PMC_LLC_MISSES_FINAL (PMC_ARCH_LLC_MISSES | PMC_ESEL_USR | PMC_ESEL_OS | \
@@ -40,4 +42,10 @@
 			PMC_ESEL_ENABLE)
 
 #define PMC_CYCLE_STALLS_L3_MISS_SKYLAKE_FINAL (PMC_CYCLE_STALLS_L3_MISS_SKYLAKE | PMC_ESEL_USR | PMC_ESEL_OS | \
+                        PMC_ESEL_ENABLE)
+
+#define PMC_CYCLE_STALLS_MEM_SKYLAKE_FINAL (PMC_CYCLE_STALLLS_MEM_SKYLAKE  | PMC_ESEL_USR | PMC_ESEL_OS | \
+                        PMC_ESEL_ENABLE)
+
+#define PMC_CYCLE_OUTSTANDING_MEM_SKYLAKE_FINAL (PMC_CYCLE_OUTSTANDING_MEM_SKYLAKE | PMC_ESEL_USR | PMC_ESEL_OS | \
                         PMC_ESEL_ENABLE)
