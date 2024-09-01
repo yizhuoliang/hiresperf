@@ -49,7 +49,7 @@ static inline __attribute__((always_inline)) uint64_t read_tsc(void)
 static void hrperf_pmc_enable_and_esel(void *info) {
     // enable the counters
     wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0x030); // fixed counter 1 for cpu unhalt
-    wrmsrl(MSR_IA32_GLOBAL_CTRL, 1UL | (1UL << 1) | (1UL << 2) | (1UL << 33)); // arch 0,1,2, fixed 1
+    wrmsrl(MSR_IA32_GLOBAL_CTRL, 1UL | (1UL << 1) | (1UL << 2) | (1UL << 3) | (1UL << 33)); // arch 0,1,2,3, fixed 1
 
     // make event selections
     wrmsrl(MSR_IA32_PERFEVTSEL0, PMC_LLC_MISSES_FINAL);
