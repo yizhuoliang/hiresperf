@@ -1,8 +1,8 @@
 import struct
 
 def parse_hrperf_log(file_path, max_frequency_ghz):
-    # Define the struct format for parsing (int for CPU ID, ktime, and unsigned long long for the new data fields)
-    entry_format = 'iqQQQQ'
+    # Updated struct format to match the new log structure
+    entry_format = 'iqQQQQQ'  # Adjusted for the new fields
     entry_size = struct.calcsize(entry_format)
     
     # Dictionary to store the last state and file handles for each CPU
@@ -17,7 +17,8 @@ def parse_hrperf_log(file_path, max_frequency_ghz):
             if not data:
                 break
             
-            cpu_id, ktime, stalls_l3_miss, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)
+            # Unpack the data according to the updated structure
+            cpu_id, ktime, stall_mem, inst_retire, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)
             
             if cpu_id not in file_handles:
                 # Open a new file for this CPU if it hasn't been opened yet
@@ -26,7 +27,8 @@ def parse_hrperf_log(file_path, max_frequency_ghz):
                 last_state[cpu_id] = {
                     'first_ktime': ktime,
                     'last_ktime': ktime,
-                    'last_stalls_l3_miss': stalls_l3_miss,
+                    'last_stall_mem': stall_mem,
+                    'last_inst_retire': inst_retire,
                     'last_cpu_unhalt': cpu_unhalt,
                     'last_llc_misses': llc_misses,
                     'last_sw_prefetch': sw_prefetch
@@ -36,10 +38,12 @@ def parse_hrperf_log(file_path, max_frequency_ghz):
             state = last_state[cpu_id]
             ktime_elapsed_since_first = ktime - state['first_ktime']
             ktime_elapsed_since_last = ktime - state['last_ktime']
-            stalls_l3_miss_since_last = stalls_l3_miss - state['last_stalls_l3_miss']
+            stall_mem_since_last = stall_mem - state['last_stall_mem']
+            inst_retire_since_last = inst_retire - state['last_inst_retire']
             
             # Calculate rates and CPU usage
-            stalls_per_us = stalls_l3_miss_since_last / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
+            stalls_per_us = stall_mem_since_last / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
+            inst_retire_rate = inst_retire_since_last / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
             cpu_usage = (cpu_unhalt - state['last_cpu_unhalt']) / (tsc_per_us * (ktime_elapsed_since_last / 1e3)) if ktime_elapsed_since_last > 0 else 0
 
             llc_misses_rate = (llc_misses - state['last_llc_misses']) / (ktime_elapsed_since_last / 1e3) if ktime_elapsed_since_last > 0 else 0
@@ -49,7 +53,8 @@ def parse_hrperf_log(file_path, max_frequency_ghz):
             # Update the last state for this CPU
             state.update({
                 'last_ktime': ktime,
-                'last_stalls_l3_miss': stalls_l3_miss,
+                'last_stall_mem': stall_mem,
+                'last_inst_retire': inst_retire,
                 'last_cpu_unhalt': cpu_unhalt,
                 'last_llc_misses': llc_misses,
                 'last_sw_prefetch': sw_prefetch
@@ -58,7 +63,7 @@ def parse_hrperf_log(file_path, max_frequency_ghz):
             # Write the computed data to the respective file
             file_handles[cpu_id].write(f"CPU {cpu_id}: ktime={ktime}, ktAgg={ktime_elapsed_since_first}, "
                                        f"ktDelta={ktime_elapsed_since_last}, StallsRate={stalls_per_us:.6f} /us, "
-                                       f"L3MisRate={llc_misses_rate:.6f}, "
+                                       f"InstRetRate={inst_retire_rate:.6f} /us, L3MisRate={llc_misses_rate:.6f}, "
                                        f"SWPrfRate={sw_prefetch_rate:.6f}, EstMBW={memory_bandwidth:.6f} bytes/us, "
                                        f"CPUUse={cpu_usage:.6f}\n")
 
