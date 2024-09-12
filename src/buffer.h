@@ -8,7 +8,7 @@
 typedef struct {
     ktime_t kts;
     unsigned long long stall_mem;
-    unsigned long long stall_l3;
+    unsigned long long inst_retire;
     unsigned long long cpu_unhalt;
     unsigned long long llc_misses;
     unsigned long long sw_prefetch;

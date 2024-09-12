@@ -49,13 +49,13 @@ static inline __attribute__((always_inline)) uint64_t read_tsc(void)
 static void hrperf_pmc_enable_and_esel(void *info) {
     // enable the counters
     wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0x030); // fixed counter 1 for cpu unhalt
-    wrmsrl(MSR_IA32_GLOBAL_CTRL, 1UL | (1UL << 1) | (1UL << 2) | (1UL << 3) | (1UL << 33)); // arch 0,1,2,3, fixed 1
+    wrmsrl(MSR_IA32_GLOBAL_CTRL, 1UL | (1UL << 1) | (1UL << 2) | (1UL << 3) | (1UL << 33)); // arch 0,1,2,3, fixed 0,1
 
     // make event selections
     wrmsrl(MSR_IA32_PERFEVTSEL0, PMC_LLC_MISSES_FINAL);
     wrmsrl(MSR_IA32_PERFEVTSEL1, PMC_SW_PREFETCH_ANY_SKYLAKE_FINAL);
     wrmsrl(MSR_IA32_PERFEVTSEL2, PMC_CYCLE_STALLS_MEM_SKYLAKE_FINAL);
-    wrmsrl(MSR_IA32_PERFEVTSEL3, PMC_CYCLE_STALLS_L3_MISS_SKYLAKE_FINAL);
+    // wrmsrl(MSR_IA32_PERFEVTSEL3, PMC_CYCLE_STALLS_L3_MISS_SKYLAKE_FINAL);
 }
 
 // Function to be called on each CPU by smp_call_function_many
@@ -63,7 +63,7 @@ static void hrperf_poller_func(void *info) {
     HrperfTick tick;
     tick.kts = ktime_get_raw();
     rdmsrl(MSR_IA32_PMC2, tick.stall_mem);
-    rdmsrl(MSR_IA32_PMC3, tick.stall_l3);
+    rdmsrl(MSR_IA32_FIXED_CTR0, tick.inst_retire);
     rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
     rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
     rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
