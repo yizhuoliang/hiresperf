@@ -16,14 +16,16 @@ EVENT_JOIN_JOINED = 10
 def sort_invocations(invocation_metrics, metric_name):
 
     # We will filter out any invocations that do not contain all necessary metrics
-    valid_invocations = [inv for inv in invocation_metrics if all(key in inv for key in ['latency_us', 'avg_cpu_usage', 'avg_memory_bandwidth_bytes_per_us', 'avg_stalls_per_us'])]
+    required_metrics = ['latency_us', 'avg_cpu_usage', 'avg_memory_bandwidth_bytes_per_us', 'avg_stalls_per_us', 'avg_inst_retire_per_us']
+    valid_invocations = [inv for inv in invocation_metrics if all(key in inv for key in required_metrics)]
 
     # Map input metric name to the correct key in the dictionary
     metric_key_map = {
         'cpu_use': 'avg_cpu_usage',
         'mem_bandwidth': 'avg_memory_bandwidth_bytes_per_us',
         'latencies': 'latency_us',
-        'stalls_rate': 'avg_stalls_per_us'
+        'stalls_rate': 'avg_stalls_per_us',
+        'inst_retire': 'avg_inst_retire_per_us'  # Added new metric
     }
 
     metric_key = metric_key_map.get(metric_name)
@@ -131,11 +133,14 @@ def draw_flamegraph(invocation, output_svg_path):
 
     # Performance metrics plotting parameters
     metric_plot_height = 100
-    metric_plot_margin = 40  # Increased margin for better spacing
+    metric_plot_margin = 50
+
+    # Updated metrics_to_plot to include 'inst_retire_per_us'
     metrics_to_plot = [
         {'name': 'cpu_usage', 'label': 'CPU Usage', 'color': 'red'},
         {'name': 'memory_bandwidth_bytes_per_us', 'label': 'Memory Bandwidth (bytes/us)', 'color': 'blue'},
-        {'name': 'stalls_per_us', 'label': 'Stalls per us', 'color': 'purple'}
+        {'name': 'stalls_per_us', 'label': 'Stalls per us', 'color': 'purple'},
+        {'name': 'inst_retire_rate', 'label': 'Instructions Retired per us', 'color': 'green'}  # Added new metric
     ]
     num_metrics = len(metrics_to_plot)
     perf_metrics_total_height = num_metrics * (metric_plot_height + metric_plot_margin)
@@ -152,7 +157,8 @@ def draw_flamegraph(invocation, output_svg_path):
         f"Latency: {invocation.get('latency_us', 'N/A')} us",
         f"Average CPU Usage: {invocation.get('avg_cpu_usage', 'N/A')}",
         f"Average Memory Bandwidth: {invocation.get('avg_memory_bandwidth_bytes_per_us', 'N/A')} bytes/us",
-        f"Average Stalls per us: {invocation.get('avg_stalls_per_us', 'N/A')}"
+        f"Average Stalls per us: {invocation.get('avg_stalls_per_us', 'N/A')}",
+        f"Average Instructions Retired per us: {invocation.get('avg_inst_retire_per_us', 'N/A')}"  # Added new metric
     ]
     for metric in metrics:
         svg_lines.append(f'<text x="{margin_left}" y="{metrics_text_y}" font-size="14px" fill="black">{metric}</text>')
@@ -326,8 +332,8 @@ def draw_flamegraph(invocation, output_svg_path):
 
 def main():
     function_name = input("Enter the function name (e.g., 'process_chunk'): ").strip()
-    metric_name = input("Enter the metric by which to sort the invocations (cpu_use, mem_bandwidth, latencies, stalls_rate): ").strip()
-    
+    metric_name = input("Enter the metric by which to sort the invocations (cpu_use, mem_bandwidth, latencies, stalls_rate, inst_retire): ").strip()
+
     # Load the invocations
     invocation_metrics_path = os.path.join(f"analysis_{function_name}", "invocation_metrics.pkl")
     if not os.path.exists(invocation_metrics_path):
