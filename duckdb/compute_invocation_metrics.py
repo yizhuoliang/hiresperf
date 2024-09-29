@@ -35,28 +35,6 @@ def main():
         SELECT
             inv.id AS inv_id,
             inv.thread_id,
-            inv.start_time_ns,
-            inv.end_time_ns,
-            sched.core_number
-        FROM
-            {invocations_table} AS inv
-        JOIN
-            threads_scheduling AS sched
-        ON
-            inv.thread_id = sched.thread_id
-        AND
-            sched.start_time_ns <= inv.end_time_ns
-        AND
-            sched.end_time_ns >= inv.start_time_ns
-    ''')
-
-    # 2. Associate invocations with performance events
-    print("Associating invocations with performance events...")
-    con.execute('''
-        CREATE TEMPORARY TABLE inv_sched AS
-        SELECT
-            inv.id AS inv_id,
-            inv.thread_id,
             GREATEST(inv.start_time_ns, sched.start_time_ns) AS start_time_ns,
             LEAST(inv.end_time_ns, sched.end_time_ns) AS end_time_ns,
             sched.core_number
@@ -70,6 +48,30 @@ def main():
             sched.end_time_ns >= inv.start_time_ns
         AND
             sched.start_time_ns <= inv.end_time_ns
+    ''')
+
+    # 2. Associate invocations with performance events
+    print("Associating invocations with performance events...")
+    con.execute('''
+        REATE TEMPORARY TABLE inv_perf AS
+        SELECT
+            inv_sched.inv_id,
+            perf.id AS perf_event_id,
+            perf.stalls_per_us,
+            perf.cpu_usage,
+            perf.memory_bandwidth_bytes_per_us,
+            perf.inst_retire_rate,
+            perf.time_delta_ns
+        FROM
+            inv_sched
+        JOIN
+            performance_events AS perf
+        ON
+            perf.cpu_id = inv_sched.core_number
+        AND
+            perf.timestamp_ns >= inv_sched.start_time_ns
+        AND
+            perf.timestamp_ns <= inv_sched.end_time_ns
     ''')
 
     # Create the inv_to_perf join table
