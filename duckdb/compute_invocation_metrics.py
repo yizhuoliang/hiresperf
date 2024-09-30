@@ -53,7 +53,7 @@ def main():
     # 2. Associate invocations with performance events
     print("Associating invocations with performance events...")
     con.execute('''
-        REATE TEMPORARY TABLE inv_perf AS
+        CREATE TEMPORARY TABLE inv_perf AS
         SELECT
             inv_sched.inv_id,
             perf.id AS perf_event_id,
