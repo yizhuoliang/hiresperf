@@ -45,6 +45,13 @@ def plot_metrics(function_name):
     # Define the metrics to plot
     metrics = [
         {
+            'data_key': 'avg_total_memory_bandwidth_bytes_per_us_total',
+            'label': 'Total Memory Bandwidth (bytes/μs)',
+            'xlabel': 'Total Memory Bandwidth (bytes/μs)',
+            'color': 'teal',
+            'filename': 'total_memory_bandwidth_distribution.png'
+        },
+        {
             'data_key': 'latency_us',
             'label': 'Latency (μs)',
             'xlabel': 'Latency (μs)',
@@ -78,13 +85,6 @@ def plot_metrics(function_name):
             'xlabel': 'Instructions Retired per μs',
             'color': 'purple',
             'filename': 'inst_retire_distribution.png'
-        },
-        {
-            'data_key': 'avg_total_memory_bandwidth_bytes_per_us_total',
-            'label': 'Total Memory Bandwidth (bytes/μs)',
-            'xlabel': 'Total Memory Bandwidth (bytes/μs)',
-            'color': 'teal',
-            'filename': 'total_memory_bandwidth_distribution.png'
         }
     ]
 
