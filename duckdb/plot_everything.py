@@ -101,11 +101,16 @@ def plot_metrics(function_name):
             print(f"No data available for {data_key}. Skipping this metric.")
             continue
 
+        # Calculate the average value
+        avg_value = data.mean()
+
         plt.figure(figsize=(10, 6))
-        plt.hist(data, bins=50, color=metric['color'], edgecolor='black')
+        plt.hist(data, bins=50, color=metric['color'], edgecolor='black', alpha=0.7)
+        plt.axvline(avg_value, color='black', linestyle='dashed', linewidth=2, label=f'Average = {avg_value:.2f}')
         plt.title(f"{metric['label']} Distribution for '{function_name}'")
         plt.xlabel(metric['xlabel'])
         plt.ylabel('Frequency')
+        plt.legend()
         plt.tight_layout()
         plt.savefig(os.path.join(function_dir, metric['filename']))
         plt.close()
@@ -133,7 +138,7 @@ def plot_metrics(function_name):
             x_values = data_df[metric_x['data_key']].values
             y_values = data_df[metric_y['data_key']].values
 
-            # Compute correlation coefficient
+            # Compute Pearson correlation coefficient
             if len(x_values) > 1:
                 corr_coef, _ = pearsonr(x_values, y_values)
             else:
@@ -146,6 +151,7 @@ def plot_metrics(function_name):
             # Compute linear regression on log-transformed data
             slope, intercept, r_value, p_value, std_err = linregress(log_x, log_y)
             elasticity = slope  # The slope is the elasticity coefficient
+            r_squared = r_value**2  # Coefficient of determination
 
             # Generate regression line for plotting
             x_fit = np.linspace(log_x.min(), log_x.max(), 100)
@@ -159,7 +165,7 @@ def plot_metrics(function_name):
             plt.figure(figsize=(10, 6))
             plt.scatter(x_values, y_values, alpha=0.5, label='Data Points')
             plt.plot(x_fit_original, y_fit_original, color='red', label=f'Fit Line (Elasticity = {elasticity:.2f})')
-            plt.title(f"{metric_x['label']} vs {metric_y['label']}\nPearson r = {corr_coef:.2f}, Elasticity = {elasticity:.2f}")
+            plt.title(f"{metric_x['label']} vs {metric_y['label']}\nPearson r = {corr_coef:.2f}, R² = {r_squared:.2f}")
             plt.xlabel(metric_x['label'])
             plt.ylabel(metric_y['label'])
             plt.legend()

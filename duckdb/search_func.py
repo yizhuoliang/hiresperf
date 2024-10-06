@@ -6,15 +6,21 @@ import duckdb
 EVENT_STACK_SAMPLE = 1
 
 def main():
-    if len(sys.argv) != 2:
-        print('Expected usage: {0} <function_name>'.format(sys.argv[0]))
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print('Expected usage: {0} <function_name> [sampling_ratio]'.format(sys.argv[0]))
         sys.exit(1)
     function_of_interest = sys.argv[1]
+    sampling_ratio = float(sys.argv[2]) if len(sys.argv) == 3 else 1.0
+
+    # Validate sampling ratio
+    if not 0.0 < sampling_ratio <= 1.0:
+        print("Sampling ratio must be between 0 (exclusive) and 1 (inclusive).")
+        sys.exit(1)
 
     # Connect to the on-disk database
     con = duckdb.connect(database='analysis.duckdb')
 
-    # Brutal, yeah
+    # Create indices if they don't exist
     con.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON ldb_events (timestamp_ns)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_thread_id ON ldb_events (thread_id)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_event_type ON ldb_events (event_type)")
@@ -43,18 +49,19 @@ def main():
     result = con.execute(f"SELECT MAX(id) FROM {invocations_table}").fetchone()
     next_id = (result[0] + 1) if result[0] is not None else 1
 
-    # Find invocations of the function
-    print(f"Finding invocations of function '{function_of_interest}'...")
-    # Fetch all STACK_SAMPLE events for the function
+    # Find invocations of the function with sampling
+    print(f"Finding invocations of function '{function_of_interest}' with sampling ratio {sampling_ratio}...")
+    # Fetch all STACK_SAMPLE events for the function, applying sampling
     stack_samples = con.execute(f'''
         SELECT timestamp_ns, thread_id, latency_us, func_desc
         FROM ldb_events
         WHERE event_type = {EVENT_STACK_SAMPLE}
           AND func_desc LIKE '{function_of_interest}%'
+          AND random() < {sampling_ratio}
     ''').fetchall()
 
     # Insert invocations into the table
-    print(f"Inserting invocations into {invocations_table} table...")
+    print(f"Inserting {len(stack_samples)} invocations into '{invocations_table}' table...")
     insert_query = f'''
         INSERT INTO {invocations_table} (
             id, thread_id, start_time_ns, end_time_ns, latency_us, func_desc
