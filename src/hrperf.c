@@ -13,6 +13,7 @@
 #include <linux/ktime.h>
 #include <linux/smp.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -150,7 +151,11 @@ static int __init hrp_pmc_init(void) {
         return -1;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+    dev_class = class_create(HRP_PMC_CLASS_NAME);
+#else
     dev_class = class_create(THIS_MODULE, HRP_PMC_CLASS_NAME);
+#endif
     if (IS_ERR(dev_class)) {
         unregister_chrdev_region(dev_num, 1);
         cdev_del(&char_dev);
