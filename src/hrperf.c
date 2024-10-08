@@ -12,6 +12,7 @@
 #include <linux/fs.h>
 #include <linux/ktime.h>
 #include <linux/smp.h>
+#include <linux/uaccess.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -60,14 +61,15 @@ static void hrperf_pmc_enable_and_esel(void *info) {
 
 // Function to be called on each CPU by smp_call_function_many
 static void hrperf_poller_func(void *info) {
-    HrperfTick tick;
-    tick.kts = ktime_get_raw();
-    rdmsrl(MSR_IA32_PMC2, tick.stall_mem);
-    rdmsrl(MSR_IA32_FIXED_CTR0, tick.inst_retire);
-    rdmsrl(MSR_IA32_FIXED_CTR1, tick.cpu_unhalt);
-    rdmsrl(MSR_IA32_PMC0, tick.llc_misses);
-    rdmsrl(MSR_IA32_PMC1, tick.sw_prefetch);
-    enqueue(this_cpu_ptr(&per_cpu_buffer), tick);
+    HrperfLogEntry entry;
+    entry.cpu_id = smp_processor_id();
+    entry.tick.kts = ktime_get_raw();
+    rdmsrl(MSR_IA32_PMC2, entry.tick.stall_mem);
+    rdmsrl(MSR_IA32_FIXED_CTR0, entry.tick.inst_retire);
+    rdmsrl(MSR_IA32_FIXED_CTR1, entry.tick.cpu_unhalt);
+    rdmsrl(MSR_IA32_PMC0, entry.tick.llc_misses);
+    rdmsrl(MSR_IA32_PMC1, entry.tick.sw_prefetch);
+    enqueue(this_cpu_ptr(&per_cpu_buffer), entry);
 }
 
 // Single poller thread function for initiating the smp_call_function_many
@@ -98,7 +100,7 @@ static int hrperf_logger_thread(void *arg) {
         int cpu;
         for_each_possible_cpu(cpu) {
             if (HRP_PMC_CPU_SELECTION_MASK & (1UL << cpu)) {
-                log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), cpu, log_file);
+                log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), log_file);
             }
         }
     }
@@ -167,13 +169,19 @@ static int __init hrp_pmc_init(void) {
     }
     printk(KERN_INFO "hrperf: device setup done\n");
 
-    // step 2.1: init selected cpus
+    // step 2.1: init selected CPUs
     cpumask_clear(&hrp_selected_cpus);
     int cpu;
     for_each_possible_cpu(cpu) {
         if (HRP_PMC_CPU_SELECTION_MASK & (1UL << cpu)) {
             cpumask_set_cpu(cpu, &hrp_selected_cpus);
         }
+    }
+
+    // initialize per-cpu ring buffers
+    for_each_possible_cpu(cpu) {
+        HrperfRingBuffer *rb = per_cpu_ptr(&per_cpu_buffer, cpu);
+        init_ring_buffer(rb);
     }
 
     // step 2.2: enable the counters and make event selections
@@ -185,6 +193,7 @@ static int __init hrp_pmc_init(void) {
         printk(KERN_ERR "Failed to create the poller thread\n");
         return PTR_ERR(poller_thread);
     }
+    kthread_bind(poller_thread, HRP_PMC_POLLER_CPU);
 
     // step 3: init log file
     log_file = hrperf_init_log_file();
@@ -192,7 +201,7 @@ static int __init hrp_pmc_init(void) {
         printk(KERN_ERR "Failed to initialize log file\n");
         // Handle the error appropriately
     }
-    
+
     // Initialize logger thread
     logger_thread = kthread_run(hrperf_logger_thread, NULL, "logger_thread");
     if (IS_ERR(logger_thread)) {

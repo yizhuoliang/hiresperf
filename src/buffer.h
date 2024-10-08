@@ -1,7 +1,7 @@
-#ifndef _HRP_BUFFER_H
-#define _HRP_BUFFER_H
+#ifndef BUFFER_H
+#define BUFFER_H
 
-#include <linux/kernel.h>
+#include <linux/types.h>
 #include <linux/ktime.h>
 #include "config.h"
 
@@ -15,14 +15,18 @@ typedef struct {
 } HrperfTick;
 
 typedef struct {
-    HrperfTick buffer[HRP_PMC_BUFFER_SIZE];
-    size_t head;
-    size_t tail;
+    int cpu_id;
+    HrperfTick tick;
+} HrperfLogEntry;
+
+typedef struct {
+    HrperfLogEntry buffer[HRP_PMC_BUFFER_SIZE];
+    volatile unsigned int head;
+    volatile unsigned int tail;
 } HrperfRingBuffer;
 
 bool is_full(const HrperfRingBuffer *rb);
 void init_ring_buffer(HrperfRingBuffer *rb);
-void enqueue(HrperfRingBuffer *rb, HrperfTick data);
-void print_and_clear(HrperfRingBuffer *rb);
+void enqueue(HrperfRingBuffer *rb, HrperfLogEntry data);
 
-#endif
+#endif // BUFFER_H
