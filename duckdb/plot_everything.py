@@ -1,6 +1,7 @@
 import sys
 import os
 import duckdb
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -9,20 +10,27 @@ from scipy.stats import pearsonr, linregress
 def plot_metrics(function_name):
     invocations_table = f"{function_name}_invocations"
 
-    # Connect to 'analysis.duckdb'
+    # ----------------------------------------
+    # Connect to the Database
+    # ----------------------------------------
     con = duckdb.connect('analysis.duckdb')
 
-    # Check if the invocations table exists
+    # ----------------------------------------
+    # Check if the Invocations Table Exists
+    # ----------------------------------------
     tables = [row[0] for row in con.execute("SHOW TABLES").fetchall()]
     if invocations_table not in tables:
         print(f"Error: Table '{invocations_table}' does not exist in 'analysis.duckdb'.")
         con.close()
         return
 
-    # Fetch invocation-level data
+    # ----------------------------------------
+    # Fetch Invocation-Level Data
+    # ----------------------------------------
     inv_df = con.execute(f'''
         SELECT
             id,
+            thread_id,
             latency_us,
             avg_cpu_usage * 100 AS avg_cpu_usage_percent,
             avg_memory_bandwidth_bytes_per_us,
@@ -37,12 +45,16 @@ def plot_metrics(function_name):
 
     con.close()
 
-    # Create function directory if it doesn't exist
+    # ----------------------------------------
+    # Create Function Directory
+    # ----------------------------------------
     function_dir = "analysis_" + function_name.replace(' ', '_').replace('(', '').replace(')', '').replace(':', '_').replace('.', '_')
     if not os.path.exists(function_dir):
         os.makedirs(function_dir)
 
-    # Define the metrics to plot
+    # ----------------------------------------
+    # Define Metrics to Plot
+    # ----------------------------------------
     metrics = [
         {
             'data_key': 'avg_total_memory_bandwidth_bytes_per_us_total',
@@ -88,7 +100,9 @@ def plot_metrics(function_name):
         }
     ]
 
-    # Plot distributions
+    # ----------------------------------------
+    # Plot Distributions
+    # ----------------------------------------
     print("Plotting distributions...")
     for metric in metrics:
         data_key = metric['data_key']
@@ -117,7 +131,9 @@ def plot_metrics(function_name):
 
     print(f"Distribution plots have been saved in the '{function_dir}' directory.")
 
-    # Plot correlations with log-log regression
+    # ----------------------------------------
+    # Plot Correlations with Log-Log Regression
+    # ----------------------------------------
     print("Plotting correlations with log-log regression...")
     num_metrics = len(metrics)
     for i in range(num_metrics):
@@ -125,8 +141,8 @@ def plot_metrics(function_name):
             metric_x = metrics[i]
             metric_y = metrics[j]
 
-            # Extract data for both metrics, only when both metrics are present
-            data_df = inv_df[[metric_x['data_key'], metric_y['data_key']]].dropna()
+            # Extract data for both metrics, including thread_id
+            data_df = inv_df[[metric_x['data_key'], metric_y['data_key'], 'thread_id']].dropna()
 
             # Remove non-positive values (since log of zero or negative numbers is undefined)
             data_df = data_df[(data_df[metric_x['data_key']] > 0) & (data_df[metric_y['data_key']] > 0)]
@@ -137,6 +153,7 @@ def plot_metrics(function_name):
 
             x_values = data_df[metric_x['data_key']].values
             y_values = data_df[metric_y['data_key']].values
+            thread_ids = data_df['thread_id'].values
 
             # Compute Pearson correlation coefficient
             if len(x_values) > 1:
@@ -161,14 +178,25 @@ def plot_metrics(function_name):
             x_fit_original = np.exp(x_fit)
             y_fit_original = np.exp(y_fit)
 
+            # Map thread_ids to colors
+            unique_thread_ids = np.unique(thread_ids)
+            num_threads = len(unique_thread_ids)
+            cmap = matplotlib.colormaps['tab20'].resampled(num_threads)
+            color_map = {thread_id: cmap(i) for i, thread_id in enumerate(unique_thread_ids)}
+            colors = [color_map[tid] for tid in thread_ids]
+
             # Plot scatter plot with regression line
             plt.figure(figsize=(10, 6))
-            plt.scatter(x_values, y_values, alpha=0.5, label='Data Points')
-            plt.plot(x_fit_original, y_fit_original, color='red', label=f'Fit Line (Elasticity = {elasticity:.2f})')
+            plt.scatter(x_values, y_values, c=colors, alpha=0.5, label='Data Points')
+            plt.plot(x_fit_original, y_fit_original, color='black', linewidth=2, label=f'Fit Line (Elasticity = {elasticity:.2f})')
             plt.title(f"{metric_x['label']} vs {metric_y['label']}\nPearson r = {corr_coef:.2f}, R² = {r_squared:.2f}")
             plt.xlabel(metric_x['label'])
             plt.ylabel(metric_y['label'])
-            plt.legend()
+
+            # Create a legend for thread_ids
+            patches = [plt.Line2D([0], [0], marker='o', color='w', label=f'Thread {tid}',
+                                   markerfacecolor=color_map[tid], markersize=8) for tid in unique_thread_ids]
+            plt.legend(handles=patches + [plt.Line2D([0], [0], color='black', linewidth=2, label='Fit Line')])
             plt.grid(True)
             plt.tight_layout()
 
