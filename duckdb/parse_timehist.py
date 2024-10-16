@@ -15,7 +15,7 @@ def parse_timehist(log_filename, executable_name):
                 # Extract relevant data
                 timestamp_ns = int(float(parts[0]) * 1e9)  # Convert to nanoseconds
                 tid_pid = parts[2].split('[')[1][:-1]  # Extract thread ID or PID
-                runtime_ns = int(float(parts[5]) * 1e9)  # Convert runtime to nanoseconds
+                runtime_ns = int(float(parts[5]) * 1e6)  # Convert runtime to nanoseconds
                 end_timestamp_ns = timestamp_ns + runtime_ns
                 core_number = int(parts[1].strip('[]'))  # Extract core number
 
