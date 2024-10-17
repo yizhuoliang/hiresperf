@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import pearsonr, linregress
 
-def plot_metrics(function_name):
+def plot_metrics(function_name, color_by='threads', show_fit_line=True):
     invocations_table = f"{function_name}_invocations"
 
     # ----------------------------------------
@@ -27,21 +27,63 @@ def plot_metrics(function_name):
     # ----------------------------------------
     # Fetch Invocation-Level Data
     # ----------------------------------------
-    inv_df = con.execute(f'''
-        SELECT
-            id,
-            thread_id,
-            latency_us,
-            avg_cpu_usage * 100 AS avg_cpu_usage_percent,
-            avg_memory_bandwidth_bytes_per_us,
-            avg_stalls_per_us,
-            avg_inst_retire_per_us,
-            avg_total_memory_bandwidth_bytes_per_us_total
-        FROM
-            {invocations_table}
-        WHERE
-            latency_us IS NOT NULL
-    ''').fetchdf()
+    # If coloring by cores, fetch core_number using threads_scheduling table
+    if color_by == 'cores':
+        print("Warning: Assuming no migrations during the function invocation when coloring by cores.")
+        inv_df = con.execute(f'''
+            WITH inv AS (
+                SELECT
+                    id,
+                    thread_id,
+                    start_time_ns,
+                    latency_us,
+                    avg_cpu_usage * 100 AS avg_cpu_usage_percent,
+                    avg_memory_bandwidth_bytes_per_us,
+                    avg_stalls_per_us,
+                    avg_inst_retire_per_us,
+                    avg_total_memory_bandwidth_bytes_per_us_total
+                FROM
+                    {invocations_table}
+                WHERE
+                    latency_us IS NOT NULL
+            ),
+            sched AS (
+                SELECT
+                    thread_id,
+                    start_time_ns AS sched_start_ns,
+                    end_time_ns AS sched_end_ns,
+                    core_number
+                FROM
+                    threads_scheduling
+            ),
+            inv_sched AS (
+                SELECT
+                    inv.*,
+                    sched.core_number
+                FROM
+                    inv
+                LEFT JOIN sched
+                ON inv.thread_id = sched.thread_id
+                AND inv.start_time_ns BETWEEN sched.sched_start_ns AND sched.sched_end_ns
+            )
+            SELECT * FROM inv_sched
+        ''').fetchdf()
+    else:
+        inv_df = con.execute(f'''
+            SELECT
+                id,
+                thread_id,
+                latency_us,
+                avg_cpu_usage * 100 AS avg_cpu_usage_percent,
+                avg_memory_bandwidth_bytes_per_us,
+                avg_stalls_per_us,
+                avg_inst_retire_per_us,
+                avg_total_memory_bandwidth_bytes_per_us_total
+            FROM
+                {invocations_table}
+            WHERE
+                latency_us IS NOT NULL
+        ''').fetchdf()
 
     con.close()
 
@@ -141,8 +183,11 @@ def plot_metrics(function_name):
             metric_x = metrics[i]
             metric_y = metrics[j]
 
-            # Extract data for both metrics, including thread_id
-            data_df = inv_df[[metric_x['data_key'], metric_y['data_key'], 'thread_id']].dropna()
+            # Extract data for both metrics
+            if color_by == 'cores' and 'core_number' in inv_df.columns:
+                data_df = inv_df[[metric_x['data_key'], metric_y['data_key'], 'core_number']].dropna()
+            else:
+                data_df = inv_df[[metric_x['data_key'], metric_y['data_key'], 'thread_id']].dropna()
 
             # Remove non-positive values (since log of zero or negative numbers is undefined)
             data_df = data_df[(data_df[metric_x['data_key']] > 0) & (data_df[metric_y['data_key']] > 0)]
@@ -153,7 +198,14 @@ def plot_metrics(function_name):
 
             x_values = data_df[metric_x['data_key']].values
             y_values = data_df[metric_y['data_key']].values
-            thread_ids = data_df['thread_id'].values
+
+            # Get the identifiers for coloring
+            if color_by == 'cores' and 'core_number' in data_df.columns:
+                identifiers = data_df['core_number'].astype(str).values
+                id_label = 'Core'
+            else:
+                identifiers = data_df['thread_id'].astype(str).values
+                id_label = 'Thread'
 
             # Compute Pearson correlation coefficient
             if len(x_values) > 1:
@@ -161,56 +213,92 @@ def plot_metrics(function_name):
             else:
                 corr_coef = 0.0  # Not enough data to compute correlation
 
-            # Perform log-log regression
-            log_x = np.log(x_values)
-            log_y = np.log(y_values)
-
-            # Compute linear regression on log-transformed data
-            slope, intercept, r_value, p_value, std_err = linregress(log_x, log_y)
-            elasticity = slope  # The slope is the elasticity coefficient
-            r_squared = r_value**2  # Coefficient of determination
-
-            # Generate regression line for plotting
-            x_fit = np.linspace(log_x.min(), log_x.max(), 100)
-            y_fit = intercept + slope * x_fit
-
-            # Convert back to original scale
-            x_fit_original = np.exp(x_fit)
-            y_fit_original = np.exp(y_fit)
-
-            # Map thread_ids to colors
-            unique_thread_ids = np.unique(thread_ids)
-            num_threads = len(unique_thread_ids)
-            cmap = matplotlib.colormaps['tab20'].resampled(num_threads)
-            color_map = {thread_id: cmap(i) for i, thread_id in enumerate(unique_thread_ids)}
-            colors = [color_map[tid] for tid in thread_ids]
-
-            # Plot scatter plot with regression line
             plt.figure(figsize=(10, 6))
-            plt.scatter(x_values, y_values, c=colors, alpha=0.5, label='Data Points')
-            plt.plot(x_fit_original, y_fit_original, color='black', linewidth=2, label=f'Fit Line (Elasticity = {elasticity:.2f})')
-            plt.title(f"{metric_x['label']} vs {metric_y['label']}\nPearson r = {corr_coef:.2f}, R² = {r_squared:.2f}")
+            plt.scatter(x_values, y_values, c=identifiers, cmap='tab20', alpha=0.5, label='Data Points')
+
+            if show_fit_line:
+                # Perform log-log regression
+                log_x = np.log(x_values)
+                log_y = np.log(y_values)
+
+                # Compute linear regression on log-transformed data
+                slope, intercept, r_value, p_value, std_err = linregress(log_x, log_y)
+                elasticity = slope  # The slope is the elasticity coefficient
+                r_squared = r_value**2  # Coefficient of determination
+
+                # Generate regression line for plotting
+                x_fit = np.linspace(log_x.min(), log_x.max(), 100)
+                y_fit = intercept + slope * x_fit
+
+                # Convert back to original scale
+                x_fit_original = np.exp(x_fit)
+                y_fit_original = np.exp(y_fit)
+
+                # Plot regression line with semi-transparent line
+                plt.plot(x_fit_original, y_fit_original, color='black', linewidth=2, alpha=0.7, label=f'Fit Line (Elasticity = {elasticity:.2f})')
+
+                # Update the plot title to include Pearson r and R^2
+                plt.title(f"{metric_x['label']} vs {metric_y['label']}\nPearson r = {corr_coef:.2f}, R² = {r_squared:.2f}")
+            else:
+                # Plot title without elasticity and R^2
+                plt.title(f"{metric_x['label']} vs {metric_y['label']}\nPearson r = {corr_coef:.2f}")
+
             plt.xlabel(metric_x['label'])
             plt.ylabel(metric_y['label'])
 
-            # Create a legend for thread_ids
-            patches = [plt.Line2D([0], [0], marker='o', color='w', label=f'Thread {tid}',
-                                   markerfacecolor=color_map[tid], markersize=8) for tid in unique_thread_ids]
-            plt.legend(handles=patches + [plt.Line2D([0], [0], color='black', linewidth=2, label='Fit Line')])
+            # Create a legend for identifiers
+            unique_ids = np.unique(identifiers)
+            num_ids = len(unique_ids)
+            max_legend_entries = 20  # Limit the number of entries in the legend
+
+            if num_ids <= max_legend_entries:
+                # Create a color map
+                cmap = matplotlib.colormaps['tab20'].resampled(num_ids)
+                color_map = {id_: cmap(i) for i, id_ in enumerate(unique_ids)}
+                patches = [plt.Line2D([0], [0], marker='o', color='w', label=f'{id_label} {id_}',
+                                       markerfacecolor=color_map[id_], markersize=8) for id_ in unique_ids]
+
+                legend_handles = patches
+                if show_fit_line:
+                    legend_handles.append(plt.Line2D([0], [0], color='black', linewidth=2, label='Fit Line'))
+
+                plt.legend(handles=legend_handles)
+            else:
+                if show_fit_line:
+                    plt.legend([plt.Line2D([0], [0], color='black', linewidth=2, label='Fit Line')])
+
             plt.grid(True)
             plt.tight_layout()
 
             # Save plot with a filename indicating the metrics
-            filename = f"{metric_x['data_key']}_vs_{metric_y['data_key']}_scatter.png"
+            filename = f"{metric_x['data_key']}_vs_{metric_y['data_key']}_scatter_{color_by}.png"
             plt.savefig(os.path.join(function_dir, filename))
             plt.close()
 
     print(f"Correlation plots with log-log regression have been saved in the '{function_dir}' directory.")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print('Expected usage: python plot_metrics.py <function_name>')
+    args = sys.argv[1:]
+
+    if len(args) < 1:
+        print('Expected usage: python plot_metrics.py <function_name> [color_by] [--no-fit-line]')
+        print('color_by: "threads" (default) or "cores"')
         sys.exit(1)
 
-    function_name = sys.argv[1]
-    plot_metrics(function_name)
+    function_name = args[0]
+    color_by = 'threads'
+    show_fit_line = True
+
+    # Check for '--no-fit-line' argument
+    if '--no-fit-line' in args:
+        show_fit_line = False
+        args.remove('--no-fit-line')
+
+    # Check for 'threads' or 'cores' argument
+    if len(args) > 1:
+        color_by = args[1]
+        if color_by not in ['threads', 'cores']:
+            print('Invalid value for color_by. Use "threads" or "cores".')
+            sys.exit(1)
+
+    plot_metrics(function_name, color_by, show_fit_line)
