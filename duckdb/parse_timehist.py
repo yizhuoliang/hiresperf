@@ -13,23 +13,23 @@ def parse_timehist(log_filename, executable_name):
             # Check if the current line contains the executable name
             if executable_name in parts[2]:
                 # Extract relevant data
-                timestamp_ns = int(float(parts[0]) * 1e6)  # Convert to nanoseconds
-                tid_pid = parts[2].split('[')[1][:-1]  # Extract thread ID or PID
-                runtime_ns = int(float(parts[5]) * 1e6)  # Convert runtime to nanoseconds
-                end_timestamp_ns = timestamp_ns + runtime_ns
-                core_number = int(parts[1].strip('[]'))  # Extract core number
+                end_timestamp_ns = int(float(parts[0]) * 1e9)  # Convert to nanoseconds
+                runtime_ns = int(float(parts[5]) * 1e6)        # Convert runtime to nanoseconds
+                start_timestamp_ns = end_timestamp_ns - runtime_ns
+                core_number = int(parts[1].strip('[]'))        # Extract core number
+                tid_pid = parts[2].split('[')[1][:-1]          # Extract TID/PID
 
                 # Handle TID/PID formatting
                 if '/' in tid_pid:
-                    tid = int(tid_pid.split('/')[0])  # Only take the TID
+                    tid = int(tid_pid.split('/')[0])  # Use TID
                 else:
-                    tid = int(tid_pid)  # Use PID as TID if no TID specified
+                    tid = int(tid_pid)                # Use PID if TID not available
 
                 # Append the interval data
                 data.append({
                     'thread_id': tid,
                     'core_number': core_number,
-                    'start_time_ns': timestamp_ns,
+                    'start_time_ns': start_timestamp_ns,
                     'end_time_ns': end_timestamp_ns
                 })
 
@@ -83,6 +83,6 @@ if __name__ == "__main__":
         print('Expected usage: python parse_timehist.py <log_filename> <executable_name>')
         sys.exit(1)
 
-    log_filename = sys.argv[1]  # The file with perf sched timehist data
-    executable_name = sys.argv[2]  # The executable to filter by
+    log_filename = sys.argv[1]      # The file with perf sched timehist data
+    executable_name = sys.argv[2]   # The executable to filter by
     parse_timehist(log_filename, executable_name)
