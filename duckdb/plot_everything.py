@@ -207,6 +207,11 @@ def plot_metrics(function_name, color_by='threads', show_fit_line=True):
                 identifiers = data_df['thread_id'].astype(str).values
                 id_label = 'Thread'
 
+            # Map identifiers to numeric values for coloring
+            unique_ids = np.unique(identifiers)
+            id_to_num = {id_: idx for idx, id_ in enumerate(unique_ids)}
+            colors = np.array([id_to_num[id_] for id_ in identifiers])
+
             # Compute Pearson correlation coefficient
             if len(x_values) > 1:
                 corr_coef, _ = pearsonr(x_values, y_values)
@@ -214,7 +219,7 @@ def plot_metrics(function_name, color_by='threads', show_fit_line=True):
                 corr_coef = 0.0  # Not enough data to compute correlation
 
             plt.figure(figsize=(10, 6))
-            plt.scatter(x_values, y_values, c=identifiers, cmap='tab20', alpha=0.5, label='Data Points')
+            scatter = plt.scatter(x_values, y_values, c=colors, cmap='tab20', alpha=0.5, label='Data Points')
 
             if show_fit_line:
                 # Perform log-log regression
@@ -260,12 +265,12 @@ def plot_metrics(function_name, color_by='threads', show_fit_line=True):
 
                 legend_handles = patches
                 if show_fit_line:
-                    legend_handles.append(plt.Line2D([0], [0], color='black', linewidth=2, label='Fit Line'))
+                    legend_handles.append(plt.Line2D([0], [0], color='black', linewidth=2, alpha=0.7, label='Fit Line'))
 
                 plt.legend(handles=legend_handles)
             else:
                 if show_fit_line:
-                    plt.legend([plt.Line2D([0], [0], color='black', linewidth=2, label='Fit Line')])
+                    plt.legend([plt.Line2D([0], [0], color='black', linewidth=2, alpha=0.7, label='Fit Line')])
 
             plt.grid(True)
             plt.tight_layout()
