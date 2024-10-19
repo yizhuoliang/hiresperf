@@ -5,33 +5,78 @@ import pandas as pd
 
 def parse_timehist(log_filename, executable_name):
     data = []
+    executable_pids = set()  # Set to store PIDs associated with the executable
+    warning_lines = []       # List to store lines with '-1' TID
+
     with open(log_filename, 'r') as file:
-        for line in file:
-            parts = line.strip().split()
-            if len(parts) < 6:
-                continue
-            # Check if the current line contains the executable name
-            if executable_name in parts[2]:
-                # Extract relevant data
-                end_timestamp_ns = int(float(parts[0]) * 1e9)  # Convert to nanoseconds
-                runtime_ns = int(float(parts[5]) * 1e6)        # Convert runtime to nanoseconds
+        lines = file.readlines()
+
+    for line in lines:
+        parts = line.strip().split()
+        if len(parts) < 6:
+            continue
+
+        # Extract the process info
+        process_info = parts[2]
+
+        # Extract process name and TID/PID
+        if '[' in process_info and ']' in process_info:
+            process_name = process_info.split('[')[0]
+            tid_pid_str = process_info.split('[')[1][:-1]  # Remove the closing ']'
+        else:
+            continue  # Skip lines without proper formatting
+
+        # Extract TID and PID
+        if '/' in tid_pid_str:
+            tid_str, pid_str = tid_pid_str.split('/')
+            try:
+                tid = int(tid_str)
+                pid = int(pid_str)
+            except ValueError:
+                continue  # Skip lines with invalid TID/PID
+        else:
+            try:
+                tid = int(tid_pid_str)
+                pid = None
+            except ValueError:
+                continue  # Skip lines with invalid TID
+
+        # Collect PIDs associated with the executable
+        if process_name == executable_name:
+            if pid is not None:
+                executable_pids.add(pid)
+
+        # Check for '-1' TID with matching PID
+        if tid == -1 and pid in executable_pids:
+            warning_lines.append(line.strip())
+
+        # Only process lines related to the executable
+        if process_name == executable_name:
+            # Extract relevant data
+            try:
+                end_timestamp_ns = int(float(parts[0]) * 1e9)      # Convert to nanoseconds
+                runtime_ns = int(float(parts[5]) * 1e6)            # Convert runtime to nanoseconds
                 start_timestamp_ns = end_timestamp_ns - runtime_ns
-                core_number = int(parts[1].strip('[]'))        # Extract core number
-                tid_pid = parts[2].split('[')[1][:-1]          # Extract TID/PID
+                core_number = int(parts[1].strip('[]'))            # Extract core number
+            except (ValueError, IndexError):
+                continue  # Skip lines with invalid numerical values
 
-                # Handle TID/PID formatting
-                if '/' in tid_pid:
-                    tid = int(tid_pid.split('/')[0])  # Use TID
-                else:
-                    tid = int(tid_pid)                # Use PID if TID not available
+            # Append the interval data
+            data.append({
+                'thread_id': tid,
+                'core_number': core_number,
+                'start_time_ns': start_timestamp_ns,
+                'end_time_ns': end_timestamp_ns
+            })
 
-                # Append the interval data
-                data.append({
-                    'thread_id': tid,
-                    'core_number': core_number,
-                    'start_time_ns': start_timestamp_ns,
-                    'end_time_ns': end_timestamp_ns
-                })
+    # Print warnings if any '-1' TID lines were found
+    if warning_lines:
+        print("\n" + "!"*80)
+        print("WARNING: Detected '-1' TID for the following lines associated with executable '{}':".format(executable_name))
+        for wline in warning_lines:
+            print(wline)
+        print("Perf sched output may be corrupted. Please consider rerunning the experiments.")
+        print("!"*80 + "\n")
 
     # Check if data is not empty
     if not data:
