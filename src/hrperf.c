@@ -193,12 +193,15 @@ static int __init hrp_pmc_init(void) {
     smp_call_function_many(&hrp_selected_cpus, hrperf_pmc_enable_and_esel, NULL, 1);
 
     // Initialize poller thread
-    poller_thread = kthread_run(hrperf_poller_thread, NULL, "poller_thread");
+    poller_thread = kthread_create(hrperf_poller_thread, NULL, "poller_thread");
     if (IS_ERR(poller_thread)) {
         printk(KERN_ERR "Failed to create the poller thread\n");
         return PTR_ERR(poller_thread);
     }
+
+    // Bind to the core before start running!
     kthread_bind(poller_thread, HRP_PMC_POLLER_CPU);
+    wake_up_process(poller_thread);
 
     // step 3: init log file
     log_file = hrperf_init_log_file();
@@ -208,12 +211,13 @@ static int __init hrp_pmc_init(void) {
     }
 
     // Initialize logger thread
-    logger_thread = kthread_run(hrperf_logger_thread, NULL, "logger_thread");
+    logger_thread = kthread_create(hrperf_logger_thread, NULL, "logger_thread");
     if (IS_ERR(logger_thread)) {
         printk(KERN_ERR "Failed to create the logger thread\n");
         return PTR_ERR(logger_thread);
     }
     kthread_bind(logger_thread, HRP_PMC_LOGGER_CPU);
+    wake_up_process(logger_thread);
 
     return 0;
 }
