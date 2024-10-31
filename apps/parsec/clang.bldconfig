@@ -1,0 +1,77 @@
+#!/bin/bash
+#
+# clang.bldconf - file containing global information necessary to build
+#                 PARSEC with clang
+
+export CC_HOME="/usr"
+export BINUTIL_HOME="/usr"
+export GNUTOOL_HOME="/usr"
+export BINARY_PREFIX=""
+
+if [ -z "$HOSTCC" ]; then
+  export HOSTCC=gcc
+fi
+if [ -z "$M4" ]; then
+  export M4=m4
+fi
+if [ -z "$MAKE" ]; then
+  export MAKE=make
+fi
+if [ -z "$TARGET_CROSS" ]; then
+  export TARGET_CROSS=""
+fi
+
+# Compilers and preprocessors
+export CC="~/llvm14-ldb/build/bin/clang"
+export CXX="~/llvm14-ldb/build/bin/clang++"
+export CPP="~/llvm14-ldb/build/bin/clang -E"
+export CXXCPP=""
+
+# GNU Binutils
+export LD="${TARGET_CROSS}ld"
+export AS="${TARGET_CROSS}as"
+export AR="${TARGET_CROSS}ar"
+export RANLIB="${TARGET_CROSS}ranlib"
+export STRIP="${TARGET_CROSS}strip"
+
+# Arguments to use
+export CFLAGS="$CFLAGS -O3 -g -fdebug-default-version=3 -fno-omit-frame-pointer -I~/llvm14-ldb/ -I~/llvm14-ldb/libldb/include"
+export CXXFLAGS="$CXXFLAGS -O3 -g -fdebug-default-version=3 -fno-omit-frame-pointer -I~/llvm14-ldb/ -I~/llvm14-ldb/libldb/include"
+export CPPFLAGS=""
+export CXXCPPFLAGS=""
+export LIBS="~/llvm14-ldb/libldb/libldb.a"
+export EXTRA_LIBS=""
+export PARMACS_MACRO_FILE="pthreads"
+export LDFLAGS="$LDFLAGS -O3 -g -fdebug-default-version=3 -fno-omit-frame-pointer -lpthread"
+
+# Add PARSEC version to compiler flags
+if [ -f "${PARSECDIR}/version" ]; then
+  CFLAGS="${CFLAGS} -DPARSEC_VERSION=$(${CAT} ${PARSECDIR}/version)"
+  CXXFLAGS="${CXXFLAGS} -DPARSEC_VERSION=$(${CAT} ${PARSECDIR}/version)"
+fi
+
+# Java
+export JAVA_HOME="/usr"
+export JAVAC="${JAVA_HOME}/bin/javac"
+
+# Version numbers
+if [ -x ${CC} ]; then
+  CC_ver=$(${CC} --version)
+else
+  CC_ver=""
+fi
+if [ -x ${CXX} ]; then
+  CXX_ver=$(${CXX} --version)
+else
+  CXX_ver=""
+fi
+if [ -x ${LD} ]; then
+  LD_ver=$(${LD} --version)
+else
+  LD_ver=""
+fi
+if [ -x ${JAVAC} ]; then
+  JAVAC_ver=$(${JAVAC} -version 2>&1)
+else
+  JAVAC_ver=""
+fi

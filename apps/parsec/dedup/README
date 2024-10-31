@@ -1,0 +1,2 @@
+The non-trivial part of compiling dedup with our instrumented clang is that, the openssl part (sha.c) is using many gcc-only inline-assembly.
+So we need to compile that file with gcc, but others with clang.
