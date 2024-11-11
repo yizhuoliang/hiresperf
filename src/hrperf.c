@@ -14,6 +14,8 @@
 #include <linux/smp.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
+#include <linux/bitmap.h>
+#include <linux/cpumask.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -26,7 +28,7 @@ static DEFINE_PER_CPU(HrperfRingBuffer, per_cpu_buffer);
 static struct task_struct *poller_thread;
 static struct task_struct *logger_thread;
 struct file *log_file;
-struct cpumask hrp_selected_cpus;
+static cpumask_t hrp_selected_cpus;  // Using cpumask_t for CPU selection
 static bool hrperf_running = false;
 
 // for the char device
@@ -43,9 +45,9 @@ static struct file_operations fops = {
 
 static inline __attribute__((always_inline)) uint64_t read_tsc(void)
 {
-  uint32_t a, d;
-  asm volatile("rdtsc" : "=a" (a), "=d" (d));
-  return ((uint64_t)a) | (((uint64_t)d) << 32);
+    uint32_t a, d;
+    asm volatile("rdtsc" : "=a" (a), "=d" (d));
+    return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
 static void hrperf_pmc_enable_and_esel(void *info) {
@@ -99,10 +101,8 @@ static int hrperf_logger_thread(void *arg) {
 
         usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW * HRP_PMC_POLLING_LOGGING_RATIO, HRP_PMC_POLL_INTERVAL_US_HIGH * HRP_PMC_POLLING_LOGGING_RATIO);
         int cpu;
-        for_each_possible_cpu(cpu) {
-            if (HRP_PMC_CPU_SELECTION_MASK & (1UL << cpu)) {
-                log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), log_file);
-            }
+        for_each_cpu(cpu, &hrp_selected_cpus) {
+            log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), log_file);
         }
     }
     return 0;
@@ -174,17 +174,16 @@ static int __init hrp_pmc_init(void) {
     }
     printk(KERN_INFO "hrperf: device setup done\n");
 
-    // step 2.1: init selected CPUs
+    // step 2.1: initialize selected CPUs using a 256-bit mask
+    // init cpumask to zero
     cpumask_clear(&hrp_selected_cpus);
-    int cpu;
-    for_each_possible_cpu(cpu) {
-        if (HRP_PMC_CPU_SELECTION_MASK & (1UL << cpu)) {
-            cpumask_set_cpu(cpu, &hrp_selected_cpus);
-        }
-    }
 
-    // initialize per-cpu ring buffers
-    for_each_possible_cpu(cpu) {
+    // copy the 256-bit CPU selection mask into hrp_selected_cpus
+    bitmap_copy(cpumask_bits(&hrp_selected_cpus), hrp_pmc_cpu_selection_mask_bits, HRP_PMC_CPU_SELECTION_MASK_BITS);
+
+    // Initialize per-CPU ring buffers
+    int cpu;
+    for_each_cpu(cpu, &hrp_selected_cpus) {
         HrperfRingBuffer *rb = per_cpu_ptr(&per_cpu_buffer, cpu);
         init_ring_buffer(rb);
     }
