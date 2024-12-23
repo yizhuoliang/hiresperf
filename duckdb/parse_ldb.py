@@ -2,7 +2,7 @@ import sys
 import os
 import struct
 import duckdb
-import pandas as pd  # Import Pandas
+import pandas as pd
 from elftools.elf.elffile import ELFFile
 from elftools.common.py3compat import bytes2str
 
@@ -54,6 +54,7 @@ def parse_ldb_data(ldb_data_filename):
             arg2 = int.from_bytes(byte[24:32], "little")
             arg3 = int.from_bytes(byte[32:40], "little")
 
+            # Skip invalid event_type
             if event_type < EVENT_STACK_SAMPLE or event_type > EVENT_THREAD_EXIT:
                 continue
 
@@ -78,7 +79,8 @@ def parse_ldb_data(ldb_data_filename):
 
             if event_type == EVENT_STACK_SAMPLE:
                 latency_us = arg1 / 1000.0
-                pc = arg2 - 5  # Adjust pc as in original script
+                # Adjust PC as in original script
+                pc = arg2 - 5
                 gen_depth = arg3
                 ngen = gen_depth >> 16
                 depth = gen_depth & 0xFFFF
@@ -108,7 +110,8 @@ def parse_ldb_data(ldb_data_filename):
                 if tid in last_mutex_ts:
                     wait_time_us = (timestamp_ns - last_mutex_ts[tid]) / 1000.0
                     event['wait_time_us'] = wait_time_us
-                    last_mutex_ts[tid] = timestamp_ns  # Update last_mutex_ts to point to lock time start
+                    # Update last_mutex_ts to point to lock time start
+                    last_mutex_ts[tid] = timestamp_ns
                 if tid in wait_lock_time:
                     wait_lock_time[tid][-1][1] = timestamp_ns
 
@@ -123,11 +126,9 @@ def parse_ldb_data(ldb_data_filename):
                     wait_lock_time[tid][-1][2] = timestamp_ns
 
             elif event_type == EVENT_THREAD_CREATE:
-                # No additional data needed
                 pass
 
             elif event_type == EVENT_THREAD_EXIT:
-                # No additional data needed
                 pass
 
             elif event_type == EVENT_JOIN_WAIT:
@@ -137,8 +138,6 @@ def parse_ldb_data(ldb_data_filename):
             elif event_type == EVENT_JOIN_JOINED:
                 thread_joined = arg1
                 event['thread_joined'] = thread_joined
-
-            # Additional event type handling can be added here if needed
 
             events.append(event)
 
@@ -162,9 +161,11 @@ def decode_file_line(dwarfinfo, addresses):
         lineprog = dwarfinfo.line_program_for_CU(CU)
         prevstate = None
         offset = 1
+        # Workaround for some corner cases in file_entry
         if len(lineprog['file_entry']) > 1 and \
                 lineprog['file_entry'][0] == lineprog['file_entry'][1]:
             offset = 0
+
         for entry in lineprog.get_entries():
             if entry.state is None:
                 continue
@@ -197,7 +198,7 @@ def extract_func_desc_from_source(file_path, nline, ncol, source_dir_path):
     try:
         with open(file_path, "r") as f:
             lines = f.readlines()
-            if nline - 1 < len(lines):
+            if (nline - 1) < len(lines):
                 line = lines[nline - 1]
                 return extract_func_desc(line[ncol-1:])
     except:
@@ -219,14 +220,14 @@ def get_finfos(dwarfinfo, addresses, source_dir_path):
     finfomap = {}
     if dwarfinfo is None:
         return finfomap
-    ret = decode_file_line(dwarfinfo, addresses)
-    for key in ret:
+    line_info_map = decode_file_line(dwarfinfo, addresses)
+    for addr, info in line_info_map.items():
         func_desc = extract_func_desc_from_source(
-            os.path.join(ret[key]['dir'], ret[key]['fname']),
-            ret[key]['line'], ret[key]['col'],
+            os.path.join(info['dir'], info['fname']),
+            info['line'], info['col'],
             source_dir_path
         )
-        finfomap[key] = func_desc
+        finfomap[addr] = func_desc
     return finfomap
 
 def main():
@@ -241,19 +242,40 @@ def main():
     print("Parsing ldb.data...")
     events, pcs = parse_ldb_data(ldb_data_filename)
 
-    # Get function names
+    # Parse ELF file and extract function names
     print("Parsing ELF file and extracting function names...")
     dwarfinfo = parse_elf(executable)
     finfomap = {}
     if dwarfinfo is not None:
         finfomap = get_finfos(dwarfinfo, pcs, source_dir_path)
+    else:
+        print(f"Cannot find or parse '{executable}'. Function descriptors may remain None or ???")
 
-    # Annotate events with function names
+    # We will build an on-the-fly map from func_desc -> func_desc_id
+    # so that we do not need an extra pass over 'events'.
+    func_desc_map = {}
+    next_func_desc_id = 1
+
+    # Annotate events with function names and assign func_desc_id in one pass
     for event in events:
-        if event['pc']:
-            pc = event['pc']
-            function_desc = finfomap.get(pc, "???")
-            event['func_desc'] = function_desc
+        pc = event['pc']
+        if pc is not None and pc in finfomap:
+            event['func_desc'] = finfomap[pc]
+        elif pc is not None:
+            # If PC not in map, we fallback to "???"
+            event['func_desc'] = "???"
+        # else: event['func_desc'] remains None if pc is None
+
+        # Assign func_desc_id = 0 if func_desc is None
+        # Otherwise, use the map (allocating new IDs as needed)
+        fd = event['func_desc']
+        if fd is None:
+            event['func_desc_id'] = 0
+        else:
+            if fd not in func_desc_map:
+                func_desc_map[fd] = next_func_desc_id
+                next_func_desc_id += 1
+            event['func_desc_id'] = func_desc_map[fd]
 
     # Convert events list to Pandas DataFrame
     print("Converting events list to Pandas DataFrame...")
@@ -262,7 +284,7 @@ def main():
     # Initialize DuckDB connection (on-disk database)
     con = duckdb.connect(database='analysis.duckdb')
 
-    # Define the schema for the ldb_events table
+    # Define or create the schema for the ldb_events table (now including func_desc_id)
     con.execute('''
         CREATE TABLE IF NOT EXISTS ldb_events (
             timestamp_ns BIGINT,
@@ -270,6 +292,7 @@ def main():
             event_type INTEGER,
             event_name VARCHAR,
             func_desc VARCHAR,
+            func_desc_id INTEGER,
             latency_us DOUBLE,
             detail VARCHAR,
             pc BIGINT,
@@ -298,6 +321,7 @@ def main():
             event_type,
             event_name,
             func_desc,
+            func_desc_id,
             latency_us,
             detail,
             pc,
