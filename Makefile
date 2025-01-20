@@ -8,7 +8,8 @@ all: submake
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 submake:
-	$(MAKE) -C ./src/io
+	# io monitor via bpf is still experimental
+	# $(MAKE) -C ./src/io
 
 install: all
 	@mkdir -p ./install

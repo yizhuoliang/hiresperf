@@ -39,7 +39,7 @@ def main():
 
     # Create or ensure existence of a table named after func_desc_id for storing invocations
     # For clarity, you may wish to rename the table to something generic or keep it per func_desc_id
-    invocations_table = f"invocations_func_{function_of_interest_id}"
+    invocations_table = f"func_{function_of_interest_id}_invocations"
     con.execute(f'''
         CREATE TABLE IF NOT EXISTS {invocations_table} (
             id BIGINT,

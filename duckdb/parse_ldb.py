@@ -75,6 +75,7 @@ def parse_ldb_data(ldb_data_filename):
                 'lock_time_us': None,
                 'thread_to_join': None,
                 'thread_joined': None,
+                'source_loc': None,
             }
 
             if event_type == EVENT_STACK_SAMPLE:
@@ -227,7 +228,15 @@ def get_finfos(dwarfinfo, addresses, source_dir_path):
             info['line'], info['col'],
             source_dir_path
         )
-        finfomap[addr] = func_desc
+        # Build a monolithic string representing the original path + file + position:
+        source_loc_str = (
+            f"{bytes2str(info['dir'])}/{bytes2str(info['fname'])}:"
+            f"{info['line']}:{info['col']}"
+        )
+        finfomap[addr] = {
+            'func_desc': func_desc,
+            'source_loc': source_loc_str
+        }
     return finfomap
 
 def main():
@@ -256,15 +265,18 @@ def main():
     func_desc_map = {}
     next_func_desc_id = 1
 
-    # Annotate events with function names and assign func_desc_id in one pass
+    # Annotate events with function names, source location, and assign func_desc_id in one pass
     for event in events:
         pc = event['pc']
         if pc is not None and pc in finfomap:
-            event['func_desc'] = finfomap[pc]
+            event['func_desc'] = finfomap[pc]['func_desc']
+            event['source_loc'] = finfomap[pc]['source_loc']
         elif pc is not None:
             # If PC not in map, we fallback to "???"
             event['func_desc'] = "???"
+            event['source_loc'] = "???"
         # else: event['func_desc'] remains None if pc is None
+        #       event['source_loc'] remains None if pc is None
 
         # Assign func_desc_id = 0 if func_desc is None
         # Otherwise, use the map (allocating new IDs as needed)
@@ -284,7 +296,7 @@ def main():
     # Initialize DuckDB connection (on-disk database)
     con = duckdb.connect(database='analysis.duckdb')
 
-    # Define or create the schema for the ldb_events table (now including func_desc_id)
+    # Define or create the schema for the ldb_events table (now including func_desc_id and source_loc)
     con.execute('''
         CREATE TABLE IF NOT EXISTS ldb_events (
             timestamp_ns BIGINT,
@@ -303,7 +315,8 @@ def main():
             wait_time_us DOUBLE,
             lock_time_us DOUBLE,
             thread_to_join BIGINT,
-            thread_joined BIGINT
+            thread_joined BIGINT,
+            source_loc VARCHAR
         )
     ''')
 
@@ -332,7 +345,8 @@ def main():
             wait_time_us,
             lock_time_us,
             thread_to_join,
-            thread_joined
+            thread_joined,
+            source_loc
         FROM df_events
     ''')
 

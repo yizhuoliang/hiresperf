@@ -61,7 +61,7 @@ int main (int argc, char * const argv[]) {
 #define __PARSEC_XSTRING(x) __PARSEC_STRING(x)
         // cout << "PARSEC Benchmark Suite Version "__PARSEC_XSTRING(PARSEC_VERSION) << endl << flush;
 #else
-        cout << "PARSEC Benchmark Suite" << endl << flush;
+        // cout << "PARSEC Benchmark Suite" << endl << flush;
 #endif //PARSEC_VERSION
 #ifdef ENABLE_PARSEC_HOOKS
 	__parsec_bench_begin(__parsec_canneal);
@@ -106,7 +106,7 @@ int main (int argc, char * const argv[]) {
 	//now that we've read in the commandline, run the program
 	netlist my_netlist(filename);
 
-	annealer_thread a_threfad(&my_netlist,num_threads,swaps_per_temp,start_temp,number_temp_steps);
+	annealer_thread a_thread(&my_netlist,num_threads,swaps_per_temp,start_temp,number_temp_steps);
 
     hrperf_start();
 
