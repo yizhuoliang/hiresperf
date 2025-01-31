@@ -1,6 +1,11 @@
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 
+# suppress macro-redefined warnings,
+# as we override builtin PMC related macros with Intel manual's definitions
+KBUILD_CFLAGS += -Wno-macro-redefined
+EXTRA_CFLAGS += -Wno-macro-redefined
+
 obj-m += hrperf.o
 hrperf-objs := ./src/buffer.o ./src/log.o ./src/hrperf.o
 
