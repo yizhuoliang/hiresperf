@@ -13,6 +13,16 @@
 #define HRP_PMC_LOGGER_CPU 2
 #define HRP_PMC_POLLER_CPU 3
 
+// Default shared buffer size per CPU (1MB)
+#define HRP_PMC_SHARED_BUFFER_SIZE (1 << 20)
+
+// New IOCTL commands for shared buffer
+#define HRP_PMC_IOC_SHARED_INIT    _IOW(HRP_PMC_IOC_MAGIC, 3, unsigned long)
+#define HRP_PMC_IOC_SHARED_START   _IO(HRP_PMC_IOC_MAGIC, 4)
+#define HRP_PMC_IOC_SHARED_PAUSE   _IO(HRP_PMC_IOC_MAGIC, 5)
+#define HRP_PMC_IOC_SHARED_INFO    _IOR(HRP_PMC_IOC_MAGIC, 6, struct shared_buffer_info)
+#define HRP_PMC_IOC_SHARED_CPU_INFO _IOWR(HRP_PMC_IOC_MAGIC, 7, struct shared_cpu_buffer_info)
+
 #define HRP_PMC_CPU_SELECTION_MASK_BITS 256
 static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION_MASK_BITS / BITS_PER_LONG] = {
     0b0101010101010101010101010101010101010101010101010101010101010000UL, // CPUs 63-0

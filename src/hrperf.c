@@ -16,6 +16,7 @@
 #include <linux/version.h>
 #include <linux/bitmap.h>
 #include <linux/cpumask.h>
+#include <linux/mm.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -31,6 +32,23 @@ struct file *log_file;
 static cpumask_t hrp_selected_cpus;  // Using cpumask_t for CPU selection
 static bool hrperf_running = false;
 
+// Shared buffer globals
+static HrperfSharedBufferArray shared_buffers;
+static bool shared_mode = false;
+
+// Shared buffer info structures for userspace
+struct shared_buffer_info {
+    __u32 cpu_count;
+    __u32 buffer_size;
+    __u32 entry_size;
+};
+
+struct shared_cpu_buffer_info {
+    __u32 cpu_id;
+    __u64 phys_addr;
+    __u32 buffer_size;
+};
+
 // for the char device
 static int major_number;
 static struct class* dev_class = NULL;
@@ -38,9 +56,11 @@ static struct device* device_p = NULL;
 static struct cdev char_dev;
 
 static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+static int hrperf_mmap(struct file *file, struct vm_area_struct *vma);
 static struct file_operations fops = {
     .owner = THIS_MODULE,
-    .unlocked_ioctl = hrperf_ioctl
+    .unlocked_ioctl = hrperf_ioctl,
+    .mmap = hrperf_mmap
 };
 
 static inline __attribute__((always_inline)) uint64_t read_tsc(void)
@@ -62,17 +82,28 @@ static void hrperf_pmc_enable_and_esel(void *info) {
     // wrmsrl(MSR_IA32_PERFEVTSEL3, PMC_CYCLE_STALLS_L3_MISS_SKYLAKE_FINAL);
 }
 
-// Function to be called on each CPU by smp_call_function_many
 static void hrperf_poller_func(void *info) {
     HrperfLogEntry entry;
-    entry.cpu_id = smp_processor_id();
+    int cpu = smp_processor_id();
+    
+    entry.cpu_id = cpu;
     entry.tick.kts = ktime_get_raw();
     rdmsrl(MSR_IA32_PMC2, entry.tick.stall_mem);
     rdmsrl(MSR_IA32_FIXED_CTR0, entry.tick.inst_retire);
     rdmsrl(MSR_IA32_FIXED_CTR1, entry.tick.cpu_unhalt);
     rdmsrl(MSR_IA32_PMC0, entry.tick.llc_misses);
     rdmsrl(MSR_IA32_PMC1, entry.tick.sw_prefetch);
-    enqueue(this_cpu_ptr(&per_cpu_buffer), entry);
+    
+    // Write to the appropriate buffer based on mode
+    if (shared_mode) {
+        // In shared memory mode, only write to shared buffer
+        if (shared_buffers.enabled && cpu < shared_buffers.cpu_count) {
+            write_to_shared_buffer(&shared_buffers.buffers[cpu], &entry);
+        }
+    } else {
+        // In file logging mode, only write to per-CPU buffer
+        enqueue(this_cpu_ptr(&per_cpu_buffer), entry);
+    }
 }
 
 // Single poller thread function for initiating the smp_call_function_many
@@ -92,7 +123,7 @@ static int hrperf_poller_thread(void *arg) {
 // Logger thread function
 static int hrperf_logger_thread(void *arg) {
     while (!kthread_should_stop()) {
-        if (!hrperf_running) {
+        if (!hrperf_running || shared_mode) {
             set_current_state(TASK_INTERRUPTIBLE);
             schedule();  // pause execution here
         }
@@ -108,23 +139,156 @@ static int hrperf_logger_thread(void *arg) {
     return 0;
 }
 
+// Implement mmap to map the shared buffer to userspace
+static int hrperf_mmap(struct file *file, struct vm_area_struct *vma)
+{
+    unsigned long size = vma->vm_end - vma->vm_start;
+    unsigned long pfn;
+    int i, ret = 0;
+    int cpu_id = vma->vm_pgoff; // Use pgoff to specify which CPU's buffer to map
+    HrperfSharedBuffer *sbuf;
+    
+    // Check if shared buffers are initialized
+    if (!shared_buffers.buffers)
+        return -EINVAL;
+    
+    // Check if CPU ID is valid
+    if (cpu_id >= shared_buffers.cpu_count)
+        return -EINVAL;
+    
+    sbuf = &shared_buffers.buffers[cpu_id];
+    
+    // Check if requested size is valid
+    if (size > sbuf->size)
+        return -EINVAL;
+    
+    // Reset vm_pgoff so we map from the start of the buffer
+    vma->vm_pgoff = 0;
+    
+    // Map each page of the buffer
+    for (i = 0; i < sbuf->page_count && (i * PAGE_SIZE) < size; i++) {
+        pfn = page_to_pfn(sbuf->pages[i]);
+        ret = remap_pfn_range(vma, vma->vm_start + (i * PAGE_SIZE),
+                             pfn, PAGE_SIZE, vma->vm_prot);
+        if (ret)
+            return ret;
+    }
+    
+    return 0;
+}
+
 // IOCTL function to start/stop the logger/pollers
 static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
     switch (cmd) {
     case HRP_PMC_IOC_START:
         if (!hrperf_running) {
+            // Don't start file logging if we're in shared buffer mode
+            if (shared_mode) {
+                printk(KERN_INFO "hrperf: Cannot start file logging while in shared buffer mode\n");
+                return -EINVAL;
+            }
+            
             hrperf_running = true;
             wake_up_process(poller_thread);
             wake_up_process(logger_thread);
-            printk(KERN_INFO "hrperf: Monitoring resumed\n");
+            printk(KERN_INFO "hrperf: File logging monitoring started\n");
         }
         break;
+        
     case HRP_PMC_IOC_PAUSE:
+        if (hrperf_running && !shared_mode) {
+            hrperf_running = false;
+            printk(KERN_INFO "hrperf: File logging paused\n");
+        } else if (shared_mode) {
+            printk(KERN_INFO "hrperf: Cannot pause file logging while in shared buffer mode\n");
+            return -EINVAL;
+        }
+        break;
+        
+    case HRP_PMC_IOC_SHARED_INIT:
+        {
+            size_t buffer_size = arg;
+            if (buffer_size == 0) {
+                buffer_size = HRP_PMC_SHARED_BUFFER_SIZE; // Use default if not specified
+            }
+            return init_shared_buffer_array(&shared_buffers, buffer_size);
+        }
+        break;
+        
+    case HRP_PMC_IOC_SHARED_START:
+        if (!shared_buffers.buffers)
+            return -EINVAL;
+            
+        // First pause file logging if active
+        if (hrperf_running && !shared_mode) {
+            // Stop file logging but keep the system in running state
+            // to avoid waking the logger thread
+            hrperf_running = false; 
+            printk(KERN_INFO "hrperf: File logging paused for shared buffer mode\n");
+        }
+            
+        shared_buffers.enabled = true;
+        shared_mode = true; // Switch to shared mode
+        
+        // Start the poller for shared buffer mode
+        hrperf_running = true;
+        wake_up_process(poller_thread);
+        printk(KERN_INFO "hrperf: Shared buffer monitoring started\n");
+        break;
+        
+    case HRP_PMC_IOC_SHARED_PAUSE:
+        if (!shared_mode) {
+            // Not in shared mode, nothing to do
+            return 0;
+        }
+        
+        // Disable shared buffer mode
+        shared_buffers.enabled = false;
+        shared_mode = false;
+        
+        // Pause monitoring completely
         if (hrperf_running) {
             hrperf_running = false;
-            printk(KERN_INFO "hrperf: Monitoring paused\n");
+        }
+        
+        printk(KERN_INFO "hrperf: Shared buffer monitoring paused\n");
+        break;
+        
+    case HRP_PMC_IOC_SHARED_INFO:
+        {
+            struct shared_buffer_info info;
+            if (!shared_buffers.buffers)
+                return -EINVAL;
+                
+            info.cpu_count = shared_buffers.cpu_count;
+            info.buffer_size = shared_buffers.buffers[0].size;
+            info.entry_size = sizeof(HrperfLogEntry);
+            
+            if (copy_to_user((void __user *)arg, &info, sizeof(info)))
+                return -EFAULT;
         }
         break;
+        
+    case HRP_PMC_IOC_SHARED_CPU_INFO:
+        {
+            struct shared_cpu_buffer_info info;
+            if (!shared_buffers.buffers)
+                return -EINVAL;
+            
+            if (copy_from_user(&info, (void __user *)arg, sizeof(info)))
+                return -EFAULT;
+            
+            if (info.cpu_id >= shared_buffers.cpu_count)
+                return -EINVAL;
+                
+            info.phys_addr = shared_buffers.buffers[info.cpu_id].phys_addr;
+            info.buffer_size = shared_buffers.buffers[info.cpu_id].size;
+            
+            if (copy_to_user((void __user *)arg, &info, sizeof(info)))
+                return -EFAULT;
+        }
+        break;
+        
     default:
         return -ENOTTY;
     }
@@ -218,6 +382,10 @@ static int __init hrp_pmc_init(void) {
     kthread_bind(logger_thread, HRP_PMC_LOGGER_CPU);
     wake_up_process(logger_thread);
 
+    // Initialize shared buffer mode flags
+    shared_mode = false;
+    memset(&shared_buffers, 0, sizeof(shared_buffers));
+
     return 0;
 }
 
@@ -231,6 +399,9 @@ static void __exit hrp_pmc_exit(void) {
     }
 
     hrperf_close_log_file(log_file);
+    
+    // Clean up shared buffers if initialized
+    cleanup_shared_buffer_array(&shared_buffers);
 
     dev_t dev_num = MKDEV(major_number, 0);
     device_destroy(dev_class, dev_num);
