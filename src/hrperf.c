@@ -169,7 +169,7 @@ static int hrperf_mmap(struct file *file, struct vm_area_struct *vma)
     for (i = 0; i < sbuf->page_count && (i * PAGE_SIZE) < size; i++) {
         pfn = page_to_pfn(sbuf->pages[i]);
         ret = remap_pfn_range(vma, vma->vm_start + (i * PAGE_SIZE),
-                             pfn, PAGE_SIZE, vma->vm_prot);
+                             pfn, PAGE_SIZE, vma->vm_page_prot);
         if (ret)
             return ret;
     }
