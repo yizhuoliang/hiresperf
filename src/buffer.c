@@ -93,7 +93,6 @@ int init_shared_buffer_array(HrperfSharedBufferArray *sbuf_array, size_t per_buf
         header[3] = 0;                           // Write index
     }
     
-    sbuf_array->enabled = false;
     return 0;
     
 cleanup:
@@ -148,7 +147,6 @@ void cleanup_shared_buffer_array(HrperfSharedBufferArray *sbuf_array)
     
     kfree(sbuf_array->buffers);
     sbuf_array->buffers = NULL;
-    sbuf_array->enabled = false;
 }
 
 /*

@@ -39,7 +39,6 @@ typedef struct {
 typedef struct {
     HrperfSharedBuffer *buffers;  // Per-CPU shared buffers
     int cpu_count;                // Number of CPUs/buffers
-    bool enabled;                 // Whether shared buffers are active
 } HrperfSharedBufferArray;
 
 bool is_full(const HrperfRingBuffer *rb);

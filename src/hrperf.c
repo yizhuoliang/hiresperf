@@ -97,7 +97,7 @@ static void hrperf_poller_func(void *info) {
     // Write to the appropriate buffer based on mode
     if (shared_mode) {
         // In shared memory mode, only write to shared buffer
-        if (shared_buffers.enabled && cpu < shared_buffers.cpu_count) {
+        if (cpu < shared_buffers.cpu_count) {
             write_to_shared_buffer(&shared_buffers.buffers[cpu], &entry);
         }
     } else {
@@ -227,7 +227,6 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             printk(KERN_INFO "hrperf: File logging paused for shared buffer mode\n");
         }
             
-        shared_buffers.enabled = true;
         shared_mode = true; // Switch to shared mode
         
         // Start the poller for shared buffer mode
@@ -243,7 +242,6 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         }
         
         // Disable shared buffer mode
-        shared_buffers.enabled = false;
         shared_mode = false;
         
         // Pause monitoring completely
