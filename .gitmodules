@@ -1,0 +1,3 @@
+[submodule "deps/pystream"]
+	path = deps/pystream
+	url = https://github.com/yizhuoliang/pystream.git
