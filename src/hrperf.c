@@ -66,7 +66,11 @@ static void hrperf_pmc_enable_and_esel(void *info) {
 static void hrperf_poller_func(void *info) {
     HrperfLogEntry entry;
     entry.cpu_id = smp_processor_id();
+#if HRP_USE_RAW_CLOCK
     entry.tick.kts = ktime_get_raw();
+#else
+    entry.tick.kts = ktime_get_real();
+#endif
     rdmsrl(MSR_IA32_PMC2, entry.tick.stall_mem);
     rdmsrl(MSR_IA32_FIXED_CTR0, entry.tick.inst_retire);
     rdmsrl(MSR_IA32_FIXED_CTR1, entry.tick.cpu_unhalt);
