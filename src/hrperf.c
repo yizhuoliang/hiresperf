@@ -50,6 +50,20 @@ static inline __attribute__((always_inline)) uint64_t read_tsc(void)
     return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
+#if HRP_USE_OFFCORE
+static void hrperf_pmc_enable_and_esel(void *info) {
+    // enable the counters
+    wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0x033); // fixed counter 0 for inst retire, 1 for cpu unhalt
+    wrmsrl(MSR_IA32_GLOBAL_CTRL, 1UL | (1UL << 1) | (1UL << 2) | (1UL << 3) | (1UL << 32) | (1UL << 33)); // arch 0,1,2,3, fixed 0,1
+
+    // make event selections and offcore response selections
+    wrmsrl(MSR_IA32_PERFEVTSEL0, PMC_OCR_READS_TO_CORE_DRAM_ARCH_FINAL);
+    wrmsrl(MSR_OFFCORE_RSP0, PMC_OCR_READS_TO_CORE_DRAM_RSP_ARCH);
+    wrmsrl(MSR_IA32_PERFEVTSEL1, PMC_OCR_MODIFIED_WRITE_ANY_RESPONSE_ARCH_FINAL);
+    wrmsrl(MSR_OFFCORE_RSP1, PMC_OCR_MODIFIED_WRITE_ANY_RESPONSE_RSP_ARCH);
+    wrmsrl(MSR_IA32_PERFEVTSEL2, PMC_CYCLE_STALLS_MEM_SKYLAKE_FINAL);
+}
+#else
 static void hrperf_pmc_enable_and_esel(void *info) {
     // enable the counters
     wrmsrl(MSR_IA32_FIXED_CTR_CTRL, 0x033); // fixed counter 0 for inst retire, 1 for cpu unhalt
@@ -57,10 +71,10 @@ static void hrperf_pmc_enable_and_esel(void *info) {
 
     // make event selections
     wrmsrl(MSR_IA32_PERFEVTSEL0, PMC_LLC_MISSES_FINAL);
-    wrmsrl(MSR_IA32_PERFEVTSEL1, PMC_SW_PREFETCH_ANY_SKYLAKE_FINAL);
-    wrmsrl(MSR_IA32_PERFEVTSEL2, PMC_CYCLE_STALLS_MEM_SKYLAKE_FINAL);
-    // wrmsrl(MSR_IA32_PERFEVTSEL3, PMC_CYCLE_STALLS_L3_MISS_SKYLAKE_FINAL);
+    wrmsrl(MSR_IA32_PERFEVTSEL1, PMC_SW_PREFETCH_ANY_ARCH_FINAL);
+    wrmsrl(MSR_IA32_PERFEVTSEL2, PMC_CYCLE_STALLS_MEM_ARCH_FINAL);
 }
+#endif
 
 // Function to be called on each CPU by smp_call_function_many
 static void hrperf_poller_func(void *info) {

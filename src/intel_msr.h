@@ -27,3 +27,7 @@
 #define MSR_IA32_PMC1 0x000000c2
 #define MSR_IA32_PMC2 0x000000c3 // available since Arch PMC V3
 #define MSR_IA32_PMC3 0x000000c4
+
+/* offcore response events selector MSRs */
+#define MSR_OFFCORE_RSP0 0x000001A6
+#define MSR_OFFCORE_RSP1 0x000001A7

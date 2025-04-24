@@ -9,7 +9,7 @@
 #include "hrperf_control.h"
 
 // Macros to configure parameters
-#define MEMORY_SIZE (4UL * 1024 * 1024 * 1024) // 4GB
+#define MEMORY_SIZE (4UL * 1024 * 1024 * 1024) // 4 GiB
 #define CORE_ID 2
 
 void pin_to_core(int core_id) {
@@ -20,7 +20,7 @@ void pin_to_core(int core_id) {
     pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 }
 
-void* memory_scanner(void* arg) {
+void* memory_writer(void* arg) {
     uint8_t *memory_region = (uint8_t*) arg;
     struct timespec start_time, end_time;
     uint64_t start_ns, end_ns, elapsed_ns;
@@ -29,16 +29,15 @@ void* memory_scanner(void* arg) {
     clock_gettime(CLOCK_MONOTONIC_RAW, &start_time);
     start_ns = (uint64_t)start_time.tv_sec * 1000000000ULL + start_time.tv_nsec;
 
-    printf("Scan start time: %lu.%09lu seconds (CLOCK_MONOTONIC_RAW)\n",
+    printf("Write start time: %lu.%09lu seconds (CLOCK_MONOTONIC_RAW)\n",
            (unsigned long)start_time.tv_sec, start_time.tv_nsec);
 
     // Start profiling
     hrperf_start();
 
-    // Perform one full scan
+    // Perform one full write pass
     for (size_t i = 0; i < MEMORY_SIZE; i++) {
-        uint8_t value = memory_region[i];
-        (void)value; // Prevent unused variable warning
+        memory_region[i] = (uint8_t)(i & 0xFF);
     }
 
     // Pause profiling
@@ -49,35 +48,38 @@ void* memory_scanner(void* arg) {
     end_ns = (uint64_t)end_time.tv_sec * 1000000000ULL + end_time.tv_nsec;
     elapsed_ns = end_ns - start_ns;
 
-    printf("Scan end time: %lu.%09lu seconds (CLOCK_MONOTONIC_RAW)\n",
+    printf("Write end time: %lu.%09lu seconds (CLOCK_MONOTONIC_RAW)\n",
            (unsigned long)end_time.tv_sec, end_time.tv_nsec);
-    printf("Total scan time: %lu.%09lu seconds (%lu nanoseconds)\n",
+    printf("Total write time: %lu.%09lu seconds (%lu nanoseconds)\n",
            elapsed_ns / 1000000000ULL, elapsed_ns % 1000000000ULL, elapsed_ns);
 
-    // Instead of running forever, return after one scan
     return NULL;
 }
 
 int main() {
-    // Pin this program to core 1
+    // Pin this program to CORE_ID
     pin_to_core(CORE_ID);
 
     // Allocate memory region
-    uint8_t *memory_region = (uint8_t*) malloc(MEMORY_SIZE);
+    uint8_t *memory_region = malloc(MEMORY_SIZE);
     if (!memory_region) {
         perror("Failed to allocate memory");
         return 1;
     }
 
-    // Initialize memory to ensure it's actually allocated
+    // Optionally initialize to zero (cold pages)
     memset(memory_region, 0, MEMORY_SIZE);
 
-    // Create a thread to scan the memory region
-    pthread_t scanner_thread;
-    pthread_create(&scanner_thread, NULL, memory_scanner, memory_region);
+    // Create a thread to write the memory region
+    pthread_t writer_thread;
+    if (pthread_create(&writer_thread, NULL, memory_writer, memory_region) != 0) {
+        perror("Failed to create writer thread");
+        free(memory_region);
+        return 1;
+    }
 
-    // Join the scanner thread
-    pthread_join(scanner_thread, NULL);
+    // Wait for the writer thread to complete
+    pthread_join(writer_thread, NULL);
 
     // Free allocated memory
     free(memory_region);

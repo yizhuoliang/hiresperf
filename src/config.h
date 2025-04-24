@@ -2,7 +2,7 @@
 #define _HRP_CONFIG_H
 
 /*
-    PMC Component Configurations
+    PMC Polling Component Configurations
 */
 
 #define HRP_PMC_BUFFER_SIZE 50
@@ -10,9 +10,8 @@
 #define HRP_PMC_POLL_INTERVAL_US_HIGH 1250
 #define HRP_PMC_POLLING_LOGGING_RATIO 35
 #define HRP_PMC_LOG_PATH "/hrperf_log.bin"
-#define HRP_PMC_LOGGER_CPU 2
-#define HRP_PMC_POLLER_CPU 3
-
+#define HRP_PMC_LOGGER_CPU 0
+#define HRP_PMC_POLLER_CPU 1
 #define HRP_USE_RAW_CLOCK 0 // set to 1 for ktime_get_raw(), 0 for ktime_get_real()
 
 #define HRP_PMC_CPU_SELECTION_MASK_BITS 256
@@ -22,6 +21,37 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
     0b0000000000000000000000000000000000000000000000000000000000000000UL, // CPUs 191-128
     0b0000000000000000000000000000000000000000000000000000000000000000UL  // CPUs 255-192
 };
+
+
+/*
+    Hardware PMU Configurations
+*/
+// define the architecture name for configuring offcore PMUs
+// Currently supported cache-miss/prefetch: "SKYLAKE", "ICELAKE", "SAPPHIRE"
+// Currently supported offcore: "SAPPHIRE"
+// to add a new arch, add macros in intel_pmc.h and update this macro
+#define HRP_ARCH_NAME SAPPHIRE
+
+#define HRP_USE_OFFCORE 1 // set to 1 for using offcore reads/writes PMUs, 0 for using cache-miss/prefetch PMUs
+
+
+// DO NOT EDIT! These will be composed with the above HRP_ARCH_NAME
+// Helper macros for proper token pasting
+#define PMC_PASTE_HELPER(a, b, c) a##b##c
+#define PMC_PASTE(a, b, c) PMC_PASTE_HELPER(a, b, c)
+
+// Offcore-specific macros
+#define PMC_OCR_READS_TO_CORE_DRAM_ARCH_FINAL          PMC_PASTE(PMC_OCR_READS_TO_CORE_DRAM_, HRP_ARCH_NAME, _FINAL)
+#define PMC_OCR_READS_TO_CORE_DRAM_RSP_ARCH            PMC_PASTE(PMC_OCR_READS_TO_CORE_DRAM_RSP_, HRP_ARCH_NAME, )
+#define PMC_OCR_MODIFIED_WRITE_ANY_RESPONSE_ARCH_FINAL PMC_PASTE(PMC_OCR_MODIFIED_WRITE_ANY_RESPONSE_, HRP_ARCH_NAME, _FINAL)
+#define PMC_OCR_MODIFIED_WRITE_ANY_RESPONSE_RSP_ARCH   PMC_PASTE(PMC_OCR_MODIFIED_WRITE_ANY_RESPONSE_RSP_, HRP_ARCH_NAME, )
+// Cache-miss and prefetch macros
+#define PMC_SW_PREFETCH_ANY_ARCH_FINAL                 PMC_PASTE(PMC_SW_PREFETCH_ANY_, HRP_ARCH_NAME, _FINAL)
+#define PMC_CYCLE_STALLS_MEM_ARCH_FINAL                PMC_PASTE(PMC_CYCLE_STALLS_MEM_, HRP_ARCH_NAME, _FINAL)
+
+/*
+    Device Configurations
+*/
 
 #define HRP_PMC_MAJOR_NUMBER 280
 #define HRP_PMC_DEVICE_NAME "hrperf_device"
