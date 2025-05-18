@@ -50,6 +50,20 @@ static inline __attribute__((always_inline)) uint64_t read_tsc(void)
     return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
+static inline void enable_rdpmc_in_user_space(void)
+{
+    unsigned long cr4_value;
+
+    // Read current CR4 value
+    asm volatile("mov %%cr4, %0" : "=r"(cr4_value));
+
+    // Set bit 8 (PCE - Performance-Monitoring Counter Enable)
+    cr4_value |= (1UL << 8);
+
+    // Write the modified value back to CR4
+    asm volatile("mov %0, %%cr4" :: "r"(cr4_value));
+}
+
 #if HRP_USE_OFFCORE
 static void hrperf_pmc_enable_and_esel(void *info) {
     // enable the counters
@@ -208,6 +222,11 @@ static int __init hrp_pmc_init(void) {
 
     // step 2.2: enable the counters and make event selections
     smp_call_function_many(&hrp_selected_cpus, hrperf_pmc_enable_and_esel, NULL, 1);
+
+    // Special step: enable RDPMC in user space if configured
+#if ENABLE_USER_SPACE_POLLING
+    smp_call_function_many(&hrp_selected_cpus, enable_rdpmc_in_user_space, NULL, 1);
+#endif
 
     // Initialize poller thread
     poller_thread = kthread_create(hrperf_poller_thread, NULL, "poller_thread");

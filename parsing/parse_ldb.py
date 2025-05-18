@@ -68,7 +68,6 @@ def parse_ldb_data(ldb_data_filename):
                 'detail': None,
                 'pc': None,
                 'ngen': None,
-                'depth': None,
                 'tag': None,
                 'mutex': None,
                 'wait_time_us': None,
@@ -80,16 +79,13 @@ def parse_ldb_data(ldb_data_filename):
 
             if event_type == EVENT_STACK_SAMPLE:
                 latency_us = arg1 / 1000.0
-                # Adjust PC as in original script
+                # A magic here: the size of a "CALL" instruction is 5 bytes!
                 pc = arg2 - 5
-                gen_depth = arg3
-                ngen = gen_depth >> 16
-                depth = gen_depth & 0xFFFF
+                ngen = arg3
                 event.update({
                     'latency_us': latency_us,
                     'pc': pc,
                     'ngen': ngen,
-                    'depth': depth,
                 })
                 pcs.add(pc)
 
@@ -309,7 +305,6 @@ def main():
             detail VARCHAR,
             pc BIGINT,
             ngen INTEGER,
-            depth INTEGER,
             tag INTEGER,
             mutex BIGINT,
             wait_time_us DOUBLE,
@@ -339,7 +334,6 @@ def main():
             detail,
             pc,
             ngen,
-            depth,
             tag,
             mutex,
             wait_time_us,
