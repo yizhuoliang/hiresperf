@@ -50,7 +50,7 @@ static inline __attribute__((always_inline)) uint64_t read_tsc(void)
     return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
-static inline void enable_rdpmc_in_user_space(void)
+static void enable_rdpmc_in_user_space(void *info)
 {
     unsigned long cr4_value;
 
