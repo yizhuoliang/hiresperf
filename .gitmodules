@@ -1,3 +1,6 @@
 [submodule "deps/pystream"]
 	path = deps/pystream
 	url = https://github.com/yizhuoliang/pystream.git
+[submodule "deps/llvm14-ldb"]
+	path = deps/llvm14-ldb
+	url = https://github.com/yizhuoliang/llvm14-ldb.git
