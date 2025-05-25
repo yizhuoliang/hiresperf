@@ -13,7 +13,8 @@ submake:
 
 install: all
 	@mkdir -p ./install
-	@cp ./hrperf.ko ./src/io/hrp_bpf.o ./src/io/libhrpio.so ./src/hrperf_api.h ./install/
+	@cp ./hrperf.ko ./src/hrperf_api.h ./src/hrperf_api.py ./install/
+	# @cp ./src/io/hrp_bpf.o ./src/io/libhrpio.so ./install/
 
 clean:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean

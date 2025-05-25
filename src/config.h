@@ -5,17 +5,29 @@
     PMC Polling Component Configurations
 */
 
+// the size for each core's PMC evnets buffer for poller/logger
 #define HRP_PMC_BUFFER_SIZE 50
+
+// the poller thread will sleep for this interval, in microseconds
 #define HRP_PMC_POLL_INTERVAL_US_LOW 1200
 #define HRP_PMC_POLL_INTERVAL_US_HIGH 1250
+
+// how many rounds of PMC polling before each logging
 #define HRP_PMC_POLLING_LOGGING_RATIO 35
+
 #define HRP_PMC_LOG_PATH "/hrperf_log.bin"
+
 #define HRP_PMC_LOGGER_CPU 0
 #define HRP_PMC_POLLER_CPU 1
-#define HRP_USE_RAW_CLOCK 0 // set to 1 for ktime_get_raw(), 0 for ktime_get_real()
 
-#define ENABLE_USER_SPACE_POLLING 1 // set to 1 to enable user space polling via RDPMC
+// set to 1 for ktime_get_raw(), 0 for ktime_get_real()
+// LDB timestamps use the raw clock, also corresponding to perf sched record -k CLOCK_MONOTONIC_RAW
+#define HRP_USE_RAW_CLOCK 0
 
+// set to 1 to enable user space polling via RDPMC
+#define ENABLE_USER_SPACE_POLLING 1
+
+// the bitmask for selecting which cores to monitor
 #define HRP_PMC_CPU_SELECTION_MASK_BITS 256
 static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION_MASK_BITS / BITS_PER_LONG] = {
     0b0000000000000000111111111111111111111111111111111111111111111111UL, // CPUs 63-0
@@ -54,7 +66,7 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
     Device Configurations
 */
 
-#define HRP_PMC_MAJOR_NUMBER 280
+#define HRP_PMC_MAJOR_NUMBER 283
 #define HRP_PMC_DEVICE_NAME "hrperf_device"
 #define HRP_PMC_CLASS_NAME "hrperf_class"
 #define HRP_PMC_IOC_MAGIC  'k'
@@ -62,7 +74,7 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
 #define HRP_PMC_IOC_PAUSE   _IO(HRP_PMC_IOC_MAGIC, 2)
 
 /*
-    BPF Component Configurations
+    BPF Component Configurations, CURRENTLY NOT USED!
 */
 
 // This polling interval doesn't affect the timeline accuracy,
