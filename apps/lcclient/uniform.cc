@@ -431,7 +431,7 @@ void PrintStatResults(std::vector<work_unit> w, struct cstat *cs, double elapsed
   double min = w[0].duration_us;
   double max = w[w.size() - 1].duration_us;
 
-  std::cout << "Number of Threads per Server: " << threads << std::endl;
+  std::cout << "Number of Client Threads per Server: " << threads << std::endl;
   std::cout << "Number of Servers: " << serverPorts.size() << std::endl;
   std::cout << "Total Threads: " << serverPorts.size() * threads << std::endl;
   std::cout << "Offered Load (RPS): " << cs->offered_rps << std::endl;
