@@ -21,6 +21,9 @@ def parse_hrperf_log(perf_log_path, max_frequency_ghz):
             data = f.read(entry_size)
             if not data:
                 break
+            if len(data) < entry_size:
+                break
+
 
             # Unpack the data according to the updated structure
             cpu_id, ktime, stall_mem, inst_retire, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)

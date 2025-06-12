@@ -9,8 +9,8 @@
 #define HRP_PMC_BUFFER_SIZE 50
 
 // the poller thread will sleep for this interval, in microseconds
-#define HRP_PMC_POLL_INTERVAL_US_LOW 1200
-#define HRP_PMC_POLL_INTERVAL_US_HIGH 1250
+#define HRP_PMC_POLL_INTERVAL_US_LOW 10
+#define HRP_PMC_POLL_INTERVAL_US_HIGH 12
 
 // how many rounds of PMC polling before each logging
 #define HRP_PMC_POLLING_LOGGING_RATIO 35
