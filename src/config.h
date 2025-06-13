@@ -24,6 +24,10 @@
 // LDB timestamps use the raw clock, also corresponding to perf sched record -k CLOCK_MONOTONIC_RAW
 #define HRP_USE_RAW_CLOCK 0
 
+// 1 for using rdtsc for timestamping, 0 for using ktime_get
+// if set to 1, the HRP_USE_RAW_CLOCK flag will be ignored.
+#define HRP_USE_TSC 0
+
 // set to 1 to enable user space polling via RDPMC
 #define ENABLE_USER_SPACE_POLLING 1
 

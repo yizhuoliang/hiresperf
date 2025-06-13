@@ -3,10 +3,15 @@
 
 #include <linux/types.h>
 #include <linux/ktime.h>
+
 #include "config.h"
 
 typedef struct {
+#ifdef HRP_USE_TSC
+    u64 kts;
+#else
     ktime_t kts;
+#endif
     unsigned long long stall_mem;
     unsigned long long inst_retire;
     unsigned long long cpu_unhalt;
