@@ -1,2 +1,19 @@
 hrp_venv/
 
+# kernel modules
+*.o
+*.o.cmd
+*.ko.cmd
+*.mod.cmd
+*.order.cmd
+*.order
+*.mod
+*.ko
+*.mod.c
+*.symvers
+*.symvers.cmd
+
+
+# clangd 
+.cache/
+compile_commands.json
