@@ -31,6 +31,16 @@
 // set to 1 to enable user space polling via RDPMC
 #define ENABLE_USER_SPACE_POLLING 1
 
+// set to 1 to use heap-allocated ring buffer, 0 for stack-allocated
+#define HRP_HEAP_ALLOCATED_RB 0
+// set to 1 to use page-based heap allocation, 0 for physically contiguous allocation
+// this is only effective when HRP_HEAP_ALLOCATED_RB is set to 1
+// Page-based heap allocation can be used to allocate large ring buffers (hundreds of MBs to GBs)
+// but it may has slight performance penalty
+// Physically contiguous allocation is faster but kernel may fail to allocate large buffers
+// Consider using page-based allocation if physically contiguous allocation fails
+#define HRP_EXLARGE_HEAP_ALLOCATED_RB 0
+
 // the bitmask for selecting which cores to monitor
 #define HRP_PMC_CPU_SELECTION_MASK_BITS 256
 static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION_MASK_BITS / 64] = {
