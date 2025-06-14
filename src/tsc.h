@@ -85,7 +85,7 @@ static u64 hrp_calibrate_tsc(void) {
   elapsed_ns = ktime_to_ns(ktime_sub(end_time, start_time));
 
   if (elapsed_ns <= 0) {
-    pr_warn("kHRP: TSC calibration failed (elapsed_ns <= 0)\n");
+    pr_warn("hrperf: TSC calibration failed (elapsed_ns <= 0)\n");
     return 0;
   }
 

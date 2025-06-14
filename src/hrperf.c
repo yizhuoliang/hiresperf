@@ -155,6 +155,20 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             printk(KERN_INFO "hrperf: Monitoring paused\n");
         }
         break;
+            
+    case HRP_PMC_IOC_TSC_FREQ: {
+        if (cycles_per_us == 0) {
+            cycles_per_us = hrp_calibrate_tsc();
+            if (cycles_per_us == 0) {
+                pr_err("hrperf: TSC calibration failed.\n");
+                return -EIO;
+            }
+        }
+        if (copy_to_user((u64 *)arg, &cycles_per_us, sizeof(cycles_per_us))) {
+            return -EFAULT;
+        }
+        break;
+    }
     default:
         return -ENOTTY;
     }
@@ -166,10 +180,10 @@ static int __init hrp_pmc_init(void) {
     
     u64 tsc_cycle = hrp_calibrate_tsc();
     if (tsc_cycle == 0) {
-        pr_err("kHRP: TSC calibration failed.\n");
+        pr_err("hrperf: TSC calibration failed.\n");
         return -EIO;
     }
-    pr_info("kHRP: TSC cycles per us: %llu\n", tsc_cycle);
+    pr_info("hrperf: TSC cycles per us: %llu\n", tsc_cycle);
 
     // step 1: init char device
     dev_t dev_num = MKDEV(HRP_PMC_MAJOR_NUMBER, 0);
