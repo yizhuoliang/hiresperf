@@ -22,6 +22,7 @@
 #include "intel_msr.h"
 #include "intel_pmc.h"
 #include "log.h"
+#include "tsc.h"
 
 // for the poller, logger, and buffers
 static DEFINE_PER_CPU(HrperfRingBuffer, per_cpu_buffer);
@@ -42,13 +43,6 @@ static struct file_operations fops = {
     .owner = THIS_MODULE,
     .unlocked_ioctl = hrperf_ioctl
 };
-
-static inline __attribute__((always_inline)) uint64_t read_tsc(void)
-{
-    uint32_t a, d;
-    asm volatile("rdtsc" : "=a" (a), "=d" (d));
-    return ((uint64_t)a) | (((uint64_t)d) << 32);
-}
 
 static void enable_rdpmc_in_user_space(void *info)
 {
@@ -94,10 +88,14 @@ static void hrperf_pmc_enable_and_esel(void *info) {
 static void hrperf_poller_func(void *info) {
     HrperfLogEntry entry;
     entry.cpu_id = smp_processor_id();
+#ifdef HRP_USE_TSC
+    entry.tick.kts = __rdtsc();
+#else
 #if HRP_USE_RAW_CLOCK
     entry.tick.kts = ktime_get_raw();
 #else
     entry.tick.kts = ktime_get_real();
+#endif
 #endif
     rdmsrl(MSR_IA32_PMC2, entry.tick.stall_mem);
     rdmsrl(MSR_IA32_FIXED_CTR0, entry.tick.inst_retire);
@@ -157,6 +155,19 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             printk(KERN_INFO "hrperf: Monitoring paused\n");
         }
         break;
+    case HRP_PMC_IOC_TSC_FREQ: {
+        if (cycles_per_us == 0) {
+            cycles_per_us = hrp_calibrate_tsc();
+            if (cycles_per_us == 0) {
+                pr_err("hrperf: TSC calibration failed.\n");
+                return -EIO;
+            }
+        }
+        if (copy_to_user((u64 *)arg, &cycles_per_us, sizeof(cycles_per_us))) {
+            return -EFAULT;
+        }
+        break;
+    }
     default:
         return -ENOTTY;
     }
@@ -165,6 +176,15 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 static int __init hrp_pmc_init(void) {
     printk(KERN_INFO "hrperf: Initializing LKM\n");
+    
+#ifdef HRP_USE_TSC
+    u64 tsc_cycle = hrp_calibrate_tsc();
+    if (tsc_cycle == 0) {
+        pr_err("hrperf: TSC calibration failed.\n");
+        return -EIO;
+    }
+    pr_info("hrperf: TSC cycles per us: %llu\n", tsc_cycle);
+#endif
 
     // step 1: init char device
     dev_t dev_num = MKDEV(HRP_PMC_MAJOR_NUMBER, 0);

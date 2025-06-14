@@ -24,6 +24,10 @@
 // LDB timestamps use the raw clock, also corresponding to perf sched record -k CLOCK_MONOTONIC_RAW
 #define HRP_USE_RAW_CLOCK 0
 
+// 1 for using rdtsc for timestamping, 0 for using ktime_get
+// if set to 1, the HRP_USE_RAW_CLOCK flag will be ignored.
+#define HRP_USE_TSC 0
+
 // set to 1 to enable user space polling via RDPMC
 #define ENABLE_USER_SPACE_POLLING 1
 
@@ -70,8 +74,9 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
 #define HRP_PMC_DEVICE_NAME "hrperf_device"
 #define HRP_PMC_CLASS_NAME "hrperf_class"
 #define HRP_PMC_IOC_MAGIC  'k'
-#define HRP_PMC_IOC_START  _IO(HRP_PMC_IOC_MAGIC, 1)
-#define HRP_PMC_IOC_PAUSE   _IO(HRP_PMC_IOC_MAGIC, 2)
+#define HRP_PMC_IOC_START       _IO(HRP_PMC_IOC_MAGIC, 1)
+#define HRP_PMC_IOC_PAUSE       _IO(HRP_PMC_IOC_MAGIC, 2)
+#define HRP_PMC_IOC_TSC_FREQ    _IOR(HRP_PMC_IOC_MAGIC, 10, u64)
 
 /*
     BPF Component Configurations, CURRENTLY NOT USED!
