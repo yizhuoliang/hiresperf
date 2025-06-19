@@ -5,7 +5,7 @@ import duckdb
 import pandas as pd
 import heapq
 
-def parse_hrperf_log(perf_log_path, max_frequency_ghz):
+def parse_hrperf_log(perf_log_path, max_frequency_ghz, tsc_per_us):
     # Updated struct format to match the new log structure
     entry_format = 'iqQQQQQ'  # Adjusted for the new fields
     entry_size = struct.calcsize(entry_format)
@@ -13,7 +13,7 @@ def parse_hrperf_log(perf_log_path, max_frequency_ghz):
     # Dictionary to store the per-core data entries
     per_core_data = {}
 
-    tsc_per_us = max_frequency_ghz * 1000  # TSC increments per microsecond
+    # tsc_per_us = max_frequency_ghz * 1000  # TSC increments per microsecond
 
     # First pass: Read the log file and split data into per-core streams
     with open(perf_log_path, 'rb') as f:
@@ -24,16 +24,18 @@ def parse_hrperf_log(perf_log_path, max_frequency_ghz):
             if len(data) < entry_size:
                 break
 
-
             # Unpack the data according to the updated structure
             cpu_id, ktime, stall_mem, inst_retire, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)
+
+
+            timestamp_ns = int(ktime / tsc_per_us * 1e3)
 
             if cpu_id not in per_core_data:
                 per_core_data[cpu_id] = []
 
             per_core_data[cpu_id].append({
                 'cpu_id': cpu_id,
-                'timestamp_ns': ktime,
+                'timestamp_ns': timestamp_ns,  # Convert ktime to nanoseconds
                 'stall_mem': stall_mem,
                 'inst_retire': inst_retire,
                 'cpu_unhalt': cpu_unhalt,
@@ -140,7 +142,12 @@ def parse_hrperf_log(perf_log_path, max_frequency_ghz):
             'llc_misses_rate': llc_misses_rate,
             'sw_prefetch_rate': sw_prefetch_rate,
             'memory_bandwidth_bytes_per_us': memory_bandwidth,
-            'time_delta_ns': time_delta_ns
+            'time_delta_ns': time_delta_ns,
+            'stall_mem': current_entry['stall_mem'],
+            'inst_retire': current_entry['inst_retire'],
+            'cpu_unhalt': current_entry['cpu_unhalt'],
+            'llc_misses': current_entry['llc_misses'],
+            'sw_prefetch': current_entry['sw_prefetch']
         }
         processed_data.append(perf_entry)
         unique_id_perf += 1
@@ -185,7 +192,12 @@ def parse_hrperf_log(perf_log_path, max_frequency_ghz):
         'llc_misses_rate': 'float64',
         'sw_prefetch_rate': 'float64',
         'memory_bandwidth_bytes_per_us': 'float64',
-        'time_delta_ns': 'int64'
+        'time_delta_ns': 'int64',
+        'stall_mem': 'uint64',
+        'inst_retire': 'uint64',
+        'cpu_unhalt': 'uint64',
+        'llc_misses': 'uint64',
+        'sw_prefetch': 'uint64'
     })
 
     df_node_memory_bandwidth = df_node_memory_bandwidth.astype({
@@ -210,7 +222,12 @@ def parse_hrperf_log(perf_log_path, max_frequency_ghz):
             llc_misses_rate DOUBLE,
             sw_prefetch_rate DOUBLE,
             memory_bandwidth_bytes_per_us DOUBLE,
-            time_delta_ns BIGINT
+            time_delta_ns DOUBLE,
+            stall_mem BIGINT,
+            inst_retire BIGINT,
+            cpu_unhalt BIGINT,
+            llc_misses BIGINT,
+            sw_prefetch BIGINT
         )
     ''')
 
@@ -256,7 +273,13 @@ def main():
         print(f"Error: File '{perf_log_path}' does not exist.")
         sys.exit(1)
 
-    parse_hrperf_log(perf_log_path, max_frequency_ghz)
+    try:
+        tsc_per_us = float(input("Enter the TSC frequency (cycles/us): ") )
+    except ValueError:
+        print("Invalid TSC frequency. Please enter a valid number.")
+        sys.exit(1)
+
+    parse_hrperf_log(perf_log_path, max_frequency_ghz, tsc_per_us)
 
 if __name__ == "__main__":
     main()
