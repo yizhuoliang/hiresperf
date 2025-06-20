@@ -6,7 +6,7 @@
 */
 
 // the size for each core's PMC evnets buffer for poller/logger
-#define HRP_PMC_BUFFER_SIZE 50000
+#define HRP_PMC_BUFFER_SIZE 50
 
 // the poller thread will sleep for this interval, in microseconds
 #define HRP_PMC_POLL_INTERVAL_US_LOW 1200
@@ -26,13 +26,13 @@
 
 // 1 for using rdtsc for timestamping, 0 for using ktime_get
 // if set to 1, the HRP_USE_RAW_CLOCK flag will be ignored.
-#define HRP_USE_TSC 1
+#define HRP_USE_TSC 0
 
 // set to 1 to enable user space polling via RDPMC
 #define ENABLE_USER_SPACE_POLLING 1
 
 // set to 1 to use heap-allocated ring buffer, 0 for stack-allocated
-#define HRP_HEAP_ALLOCATED_RB 1
+#define HRP_HEAP_ALLOCATED_RB 0
 // set to 1 to use page-based heap allocation, 0 for physically contiguous allocation
 // this is only effective when HRP_HEAP_ALLOCATED_RB is set to 1
 // Page-based heap allocation can be used to allocate large ring buffers (hundreds of MBs to GBs)
