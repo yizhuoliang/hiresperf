@@ -17,3 +17,12 @@ hrp_venv/
 # clangd 
 .cache/
 compile_commands.json
+
+# ignore install folder
+install/
+
+# ignore binaries in workloads
+workloads/*
+!workloads/*.c
+!workloads/*.h
+!workloads/Makefile

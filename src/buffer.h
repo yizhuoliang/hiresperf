@@ -25,13 +25,17 @@ typedef struct {
 } HrperfLogEntry;
 
 typedef struct {
+#ifdef HRP_HEAP_ALLOCATED_RB
+    HrperfLogEntry *buffer;
+#else
     HrperfLogEntry buffer[HRP_PMC_BUFFER_SIZE];
+#endif
     volatile unsigned int head;
     volatile unsigned int tail;
 } HrperfRingBuffer;
 
 bool is_full(const HrperfRingBuffer *rb);
-void init_ring_buffer(HrperfRingBuffer *rb);
+int init_ring_buffer(HrperfRingBuffer *rb);
 void enqueue(HrperfRingBuffer *rb, HrperfLogEntry data);
 
 #endif // BUFFER_H

@@ -174,6 +174,8 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
     return 0;
 }
 
+
+
 static int __init hrp_pmc_init(void) {
     printk(KERN_INFO "hrperf: Initializing LKM\n");
     
@@ -237,8 +239,12 @@ static int __init hrp_pmc_init(void) {
     int cpu;
     for_each_cpu(cpu, &hrp_selected_cpus) {
         HrperfRingBuffer *rb = per_cpu_ptr(&per_cpu_buffer, cpu);
-        init_ring_buffer(rb);
+        if (init_ring_buffer(rb) != 0) {
+            pr_err("hrperf: Failed to initialize ring buffer on CPU %d\n", cpu);
+            return -ENOMEM;
+        }
     }
+    pr_info("hrperf: Initialized ring buffers for selected CPUs\n");
 
     // step 2.2: enable the counters and make event selections
     smp_call_function_many(&hrp_selected_cpus, hrperf_pmc_enable_and_esel, NULL, 1);
