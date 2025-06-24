@@ -53,10 +53,10 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
             ) = struct.unpack(entry_format, data)
 
             # If tsc used, convert tsc to ktime using frequency.
-            if use_tsc_ts:
-                timestamp_ns = int(ktime / tsc_per_us * 1e3)
-            else:
-                timestamp_ns = ktime
+            # if use_tsc_ts:
+            #     timestamp_ns = int(ktime / tsc_per_us * 1e3)
+            # else:
+            #     timestamp_ns = ktime
 
             if cpu_id not in per_core_data:
                 per_core_data[cpu_id] = []
@@ -64,7 +64,7 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
             per_core_data[cpu_id].append(
                 {
                     "cpu_id": cpu_id,
-                    "timestamp_ns": timestamp_ns,
+                    "timestamp_ns": ktime,
                     "stall_mem": stall_mem,
                     "inst_retire": inst_retire,
                     "cpu_unhalt": cpu_unhalt,
@@ -126,7 +126,10 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
             continue  # Skip the first record for accurate calculations
 
         # Calculate time delta for this core
-        time_delta_ns = current_entry["timestamp_ns"] - state["last_timestamp_ns"]
+        if use_tsc_ts:
+            time_delta_ns = (current_entry["timestamp_ns"] - state["last_timestamp_ns"]) / 1999 * 1e3
+        else:
+            time_delta_ns = current_entry["timestamp_ns"] - state["last_timestamp_ns"]
         time_delta_us = time_delta_ns / 1e3  # Convert ns to us
 
         if time_delta_us <= 0:
