@@ -192,8 +192,8 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us, use_offcore
         }
 
         if use_offcore: 
-            perf_entry["read_misses_rate"] = llc_misses_rate
-            perf_entry["write_misses_rate"] = sw_prefetch_rate
+            perf_entry["offcore_read_rate"] = llc_misses_rate
+            perf_entry["offcore_write_rate"] = sw_prefetch_rate
         else:
             perf_entry["llc_misses_rate"] = llc_misses_rate
             perf_entry["sw_prefetch_rate"] = sw_prefetch_rate
@@ -207,8 +207,8 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us, use_offcore
             perf_entry["inst_retire"] = current_entry["inst_retire"]
             perf_entry["cpu_unhalt"] = current_entry["cpu_unhalt"]
             if use_offcore:
-                perf_entry["read_misses"] = current_entry["llc_misses"]
-                perf_entry["write_misses"] = current_entry["sw_prefetch"]
+                perf_entry["offcore_read"] = current_entry["llc_misses"]
+                perf_entry["offcore_write"] = current_entry["sw_prefetch"]
             else:
                 perf_entry["llc_misses"] = current_entry["llc_misses"]
                 perf_entry["sw_prefetch"] = current_entry["sw_prefetch"]
@@ -263,15 +263,15 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us, use_offcore
                     "stalls_per_us": "float64",
                     "inst_retire_rate": "float64",
                     "cpu_usage": "float64",
-                    "read_misses_rate": "float64",
-                    "write_misses_rate": "float64",
+                    "offcore_read_rate": "float64",
+                    "offcore_write_rate": "float64",
                     "memory_bandwidth_bytes_per_us": "float64",
                     "time_delta_ns": "int64",
                     "stall_mem": "uint64",
                     "inst_retire": "uint64",
                     "cpu_unhalt": "uint64",
-                    "read_misses": "uint64",
-                    "write_misses": "uint64",
+                    "offcore_read": "uint64",
+                    "offcore_write": "uint64",
                 }
             )
         else:
@@ -304,8 +304,8 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us, use_offcore
                     "stalls_per_us": "float64",
                     "inst_retire_rate": "float64",
                     "cpu_usage": "float64",
-                    "read_misses_rate": "float64",
-                    "write_misses_rate": "float64",
+                    "offcore_read_rate": "float64",
+                    "offcore_write_rate": "float64",
                     "memory_bandwidth_bytes_per_us": "float64",
                     "time_delta_ns": "int64",
                 }
@@ -349,15 +349,15 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us, use_offcore
                     stalls_per_us DOUBLE,
                     inst_retire_rate DOUBLE,
                     cpu_usage DOUBLE,
-                    read_misses_rate DOUBLE,
-                    write_misses_rate DOUBLE,
+                    offcore_read_rate DOUBLE,
+                    offcore_write_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
                     time_delta_ns BIGINT,
                     stall_mem BIGINT,
                     inst_retire BIGINT,
                     cpu_unhalt BIGINT,
-                    read_misses BIGINT,
-                    write_misses BIGINT
+                    offcore_read BIGINT,
+                    offcore_write BIGINT
                 )
             """)
         else:
@@ -390,8 +390,8 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us, use_offcore
                     stalls_per_us DOUBLE,
                     inst_retire_rate DOUBLE,
                     cpu_usage DOUBLE,
-                    read_misses_rate DOUBLE,
-                    write_misses_rate DOUBLE,
+                    offcore_read_rate DOUBLE,
+                    offcore_write_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
                     time_delta_ns BIGINT
                 )
