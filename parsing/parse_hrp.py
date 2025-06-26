@@ -20,9 +20,22 @@ def read_hrp_tsc_config(config_path="../src/config.h"):
                 return int(match.group(1))
         # If no flag, fall back to original hireserf
         return 0
+    
+def read_hrp_use_offcore_config(config_path="../src/config.h"):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(script_dir, "..", "src", "config.h")
+    config_path = os.path.abspath(config_path)
+    with open(config_path, "r") as f:
+        for line in f:
+            # look for offcore flag
+            match = re.search(r"#define\s+HRP_USE_OFFCORE\s+(\d+)", line)
+            if match:
+                return int(match.group(1))
+        # If no flag, fall back to original hireserf
+        return 0
 
 
-def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
+def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us, use_offcore):
     # Updated struct format to match the new log structure
     entry_format = "iqQQQQQ"  # Adjusted for the new fields
     entry_size = struct.calcsize(entry_format)
@@ -53,10 +66,10 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
             ) = struct.unpack(entry_format, data)
 
             # If tsc used, convert tsc to ktime using frequency.
-            if use_tsc_ts:
-                timestamp_ns = int(ktime / tsc_per_us * 1e3)
-            else:
-                timestamp_ns = ktime
+            # if use_tsc_ts:
+            #     timestamp_ns = int(ktime / tsc_per_us * 1e3)
+            # else:
+            #     timestamp_ns = ktime
 
             if cpu_id not in per_core_data:
                 per_core_data[cpu_id] = []
@@ -64,7 +77,7 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
             per_core_data[cpu_id].append(
                 {
                     "cpu_id": cpu_id,
-                    "timestamp_ns": timestamp_ns,
+                    "timestamp_ns": ktime,
                     "stall_mem": stall_mem,
                     "inst_retire": inst_retire,
                     "cpu_unhalt": cpu_unhalt,
@@ -126,7 +139,10 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
             continue  # Skip the first record for accurate calculations
 
         # Calculate time delta for this core
-        time_delta_ns = current_entry["timestamp_ns"] - state["last_timestamp_ns"]
+        if use_tsc_ts:
+            time_delta_ns = (current_entry["timestamp_ns"] - state["last_timestamp_ns"]) / 1999 * 1e3
+        else:
+            time_delta_ns = current_entry["timestamp_ns"] - state["last_timestamp_ns"]
         time_delta_us = time_delta_ns / 1e3  # Convert ns to us
 
         if time_delta_us <= 0:
@@ -173,18 +189,29 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
             "stalls_per_us": stalls_per_us,
             "inst_retire_rate": inst_retire_rate,
             "cpu_usage": cpu_usage,
-            "llc_misses_rate": llc_misses_rate,
-            "sw_prefetch_rate": sw_prefetch_rate,
-            "memory_bandwidth_bytes_per_us": memory_bandwidth,
-            "time_delta_ns": time_delta_ns,
         }
+
+        if use_offcore: 
+            perf_entry["offcore_read_rate"] = llc_misses_rate
+            perf_entry["offcore_write_rate"] = sw_prefetch_rate
+        else:
+            perf_entry["llc_misses_rate"] = llc_misses_rate
+            perf_entry["sw_prefetch_rate"] = sw_prefetch_rate
+        
+        perf_entry["memory_bandwidth_bytes_per_us"] = total_memory_bandwidth
+        perf_entry["time_delta_ns"] = time_delta_ns
+
         # If user asked, include raw counter data
         if use_raw:
             perf_entry["stall_mem"] = current_entry["stall_mem"]
             perf_entry["inst_retire"] = current_entry["inst_retire"]
             perf_entry["cpu_unhalt"] = current_entry["cpu_unhalt"]
-            perf_entry["llc_misses"] = current_entry["llc_misses"]
-            perf_entry["sw_prefetch"] = current_entry["sw_prefetch"]
+            if use_offcore:
+                perf_entry["offcore_read"] = current_entry["llc_misses"]
+                perf_entry["offcore_write"] = current_entry["sw_prefetch"]
+            else:
+                perf_entry["llc_misses"] = current_entry["llc_misses"]
+                perf_entry["sw_prefetch"] = current_entry["sw_prefetch"]
 
         processed_data.append(perf_entry)
         unique_id_perf += 1
@@ -227,40 +254,77 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
 
     # Convert data types
     if use_raw:
-        df_performance_events = df_performance_events.astype(
-            {
-                "id": "int64",
-                "cpu_id": "int32",
-                "timestamp_ns": "int64",
-                "stalls_per_us": "float64",
-                "inst_retire_rate": "float64",
-                "cpu_usage": "float64",
-                "llc_misses_rate": "float64",
-                "sw_prefetch_rate": "float64",
-                "memory_bandwidth_bytes_per_us": "float64",
-                "time_delta_ns": "int64",
-                "stall_mem": "uint64",
-                "inst_retire": "uint64",
-                "cpu_unhalt": "uint64",
-                "llc_misses": "uint64",
-                "sw_prefetch": "uint64",
-            }
+        if use_offcore:
+            df_performance_events = df_performance_events.astype(
+                {
+                    "id": "int64",
+                    "cpu_id": "int32",
+                    "timestamp_ns": "int64",
+                    "stalls_per_us": "float64",
+                    "inst_retire_rate": "float64",
+                    "cpu_usage": "float64",
+                    "offcore_read_rate": "float64",
+                    "offcore_write_rate": "float64",
+                    "memory_bandwidth_bytes_per_us": "float64",
+                    "time_delta_ns": "int64",
+                    "stall_mem": "uint64",
+                    "inst_retire": "uint64",
+                    "cpu_unhalt": "uint64",
+                    "offcore_read": "uint64",
+                    "offcore_write": "uint64",
+                }
+            )
+        else:
+            df_performance_events = df_performance_events.astype(
+                {
+                    "id": "int64",
+                    "cpu_id": "int32",
+                    "timestamp_ns": "int64",
+                    "stalls_per_us": "float64",
+                    "inst_retire_rate": "float64",
+                    "cpu_usage": "float64",
+                    "llc_misses_rate": "float64",
+                    "sw_prefetch_rate": "float64",
+                    "memory_bandwidth_bytes_per_us": "float64",
+                    "time_delta_ns": "int64",
+                    "stall_mem": "uint64",
+                    "inst_retire": "uint64",
+                    "cpu_unhalt": "uint64",
+                    "llc_misses": "uint64",
+                    "sw_prefetch": "uint64",
+                }
         )
     else:
-        df_performance_events = df_performance_events.astype(
-            {
-                "id": "int64",
-                "cpu_id": "int32",
-                "timestamp_ns": "int64",
-                "stalls_per_us": "float64",
-                "inst_retire_rate": "float64",
-                "cpu_usage": "float64",
-                "llc_misses_rate": "float64",
-                "sw_prefetch_rate": "float64",
-                "memory_bandwidth_bytes_per_us": "float64",
-                "time_delta_ns": "int64",
-            }
-        )
+        if use_offcore:
+            df_performance_events = df_performance_events.astype(
+                {
+                    "id": "int64",
+                    "cpu_id": "int32",
+                    "timestamp_ns": "int64",
+                    "stalls_per_us": "float64",
+                    "inst_retire_rate": "float64",
+                    "cpu_usage": "float64",
+                    "offcore_read_rate": "float64",
+                    "offcore_write_rate": "float64",
+                    "memory_bandwidth_bytes_per_us": "float64",
+                    "time_delta_ns": "int64",
+                }
+            )
+        else:
+            df_performance_events = df_performance_events.astype(
+                {
+                    "id": "int64",
+                    "cpu_id": "int32",
+                    "timestamp_ns": "int64",
+                    "stalls_per_us": "float64",
+                    "inst_retire_rate": "float64",
+                    "cpu_usage": "float64",
+                    "llc_misses_rate": "float64",
+                    "sw_prefetch_rate": "float64",
+                    "memory_bandwidth_bytes_per_us": "float64",
+                    "time_delta_ns": "int64",
+                }
+            )
 
     df_node_memory_bandwidth = df_node_memory_bandwidth.astype(
         {
@@ -276,40 +340,77 @@ def parse_hrperf_log(perf_log_path, use_raw, use_tsc_ts, tsc_per_us):
 
     # Create 'performance_events' table if it doesn't exist
     if use_raw:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS performance_events (
-                id BIGINT,
-                cpu_id INTEGER,
-                timestamp_ns BIGINT,
-                stalls_per_us DOUBLE,
-                inst_retire_rate DOUBLE,
-                cpu_usage DOUBLE,
-                llc_misses_rate DOUBLE,
-                sw_prefetch_rate DOUBLE,
-                memory_bandwidth_bytes_per_us DOUBLE,
-                time_delta_ns DOUBLE,
-                stall_mem BIGINT,
-                inst_retire BIGINT,
-                cpu_unhalt BIGINT,
-                llc_misses BIGINT,
-                sw_prefetch BIGINT
-            )
-        """)
+        if use_offcore:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS performance_events (
+                    id BIGINT,
+                    cpu_id INTEGER,
+                    timestamp_ns BIGINT,
+                    stalls_per_us DOUBLE,
+                    inst_retire_rate DOUBLE,
+                    cpu_usage DOUBLE,
+                    offcore_read_rate DOUBLE,
+                    offcore_write_rate DOUBLE,
+                    memory_bandwidth_bytes_per_us DOUBLE,
+                    time_delta_ns BIGINT,
+                    stall_mem BIGINT,
+                    inst_retire BIGINT,
+                    cpu_unhalt BIGINT,
+                    offcore_read BIGINT,
+                    offcore_write BIGINT
+                )
+            """)
+        else:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS performance_events (
+                    id BIGINT,
+                    cpu_id INTEGER,
+                    timestamp_ns BIGINT,
+                    stalls_per_us DOUBLE,
+                    inst_retire_rate DOUBLE,
+                    cpu_usage DOUBLE,
+                    llc_misses_rate DOUBLE,
+                    sw_prefetch_rate DOUBLE,
+                    memory_bandwidth_bytes_per_us DOUBLE,
+                    time_delta_ns DOUBLE,
+                    stall_mem BIGINT,
+                    inst_retire BIGINT,
+                    cpu_unhalt BIGINT,
+                    llc_misses BIGINT,
+                    sw_prefetch BIGINT
+                )
+            """)
     else:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS performance_events (
-                id BIGINT,
-                cpu_id INTEGER,
-                timestamp_ns BIGINT,
-                stalls_per_us DOUBLE,
-                inst_retire_rate DOUBLE,
-                cpu_usage DOUBLE,
-                llc_misses_rate DOUBLE,
-                sw_prefetch_rate DOUBLE,
-                memory_bandwidth_bytes_per_us DOUBLE,
-                time_delta_ns BIGINT
-            )
-        """)
+        if use_offcore:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS performance_events (
+                    id BIGINT,
+                    cpu_id INTEGER,
+                    timestamp_ns BIGINT,
+                    stalls_per_us DOUBLE,
+                    inst_retire_rate DOUBLE,
+                    cpu_usage DOUBLE,
+                    offcore_read_rate DOUBLE,
+                    offcore_write_rate DOUBLE,
+                    memory_bandwidth_bytes_per_us DOUBLE,
+                    time_delta_ns BIGINT
+                )
+            """)
+        else:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS performance_events (
+                    id BIGINT,
+                    cpu_id INTEGER,
+                    timestamp_ns BIGINT,
+                    stalls_per_us DOUBLE,
+                    inst_retire_rate DOUBLE,
+                    cpu_usage DOUBLE,
+                    llc_misses_rate DOUBLE,
+                    sw_prefetch_rate DOUBLE,
+                    memory_bandwidth_bytes_per_us DOUBLE,
+                    time_delta_ns BIGINT
+                )
+            """)
 
     # Create 'node_memory_bandwidth' table if it doesn't exist
     con.execute("""
@@ -378,6 +479,7 @@ def main():
     hrp_use_tsc = read_hrp_tsc_config()
     use_tsc_ts = args.tsc_ts
     tsc_per_us = args.tsc_freq
+    use_offcore = read_hrp_use_offcore_config()
 
     # Warn if TSC timestamps are requested but not enabled in the hiresperf build config file.
     if hrp_use_tsc != 1 and use_tsc_ts:
@@ -390,6 +492,7 @@ def main():
         use_raw=args.raw_counter,
         use_tsc_ts=use_tsc_ts,
         tsc_per_us=tsc_per_us,
+        use_offcore=use_offcore,
     )
 
 
