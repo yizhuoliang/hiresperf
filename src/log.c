@@ -10,7 +10,7 @@
 struct file* hrperf_init_log_file(void) {
     struct file *file;
 
-    file = filp_open(HRP_PMC_LOG_PATH, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    file = filp_open(HRP_PMC_LOG_PATH, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0666);
     if (IS_ERR(file)) {
         printk(KERN_ERR "Error opening the log file\n");
         return NULL;
