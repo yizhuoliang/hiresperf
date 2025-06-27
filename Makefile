@@ -1,8 +1,11 @@
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+MODULE_NAME := hrperf
 PWD := $(shell pwd)
 
-obj-m += hrperf.o
-hrperf-objs := ./src/buffer.o ./src/log.o ./src/hrperf.o
+obj-m := $(MODULE_NAME).o
+$(MODULE_NAME)-objs := ./src/buffer.o ./src/log.o ./src/hrperf.o
+
+ccflags-y := -I$(PWD)/include -Wall -g
 
 all: submake
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
@@ -19,6 +22,7 @@ install: all
 clean:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
 	$(MAKE) -C ./src/io clean
-	@rm -rf ./install
+	rm -rf ./install
+	rm -f .*.cmd *.mod.c Module.symvers modules.order
 
 .PHONY: all submake install clean
