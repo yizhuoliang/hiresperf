@@ -1,9 +1,8 @@
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 MODULE_NAME := hrperf
-PWD := $(shell pwd)
 
 obj-m := $(MODULE_NAME).o
-$(MODULE_NAME)-objs := ./src/buffer.o ./src/log.o ./src/hrperf.o
+$(MODULE_NAME)-objs := ./src/buffer.o ./src/log.o ./src/hrperf.o ./src/cpucounters.o ./src/mmio.o ./src/uncore_pmu_discovery.o ./src/uncore_pmu.o
 
 ccflags-y := -I$(PWD)/include -Wall -g
 
