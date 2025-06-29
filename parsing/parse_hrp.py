@@ -1,12 +1,10 @@
 import sys
-import struct
 import os
 import duckdb
 import argparse
 import re
-from dataclasses import dataclass
-from typing import Iterator, Dict, List, Optional, Tuple
-
+import polars as pl
+import numpy as np
 
 def read_hrp_tsc_config(config_path="../src/config.h") -> bool:
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,71 +32,40 @@ def read_hrp_use_offcore_config(config_path="../src/config.h") -> bool:
         # If no flag, fall back to original hireserf
         return False
 
-
-@dataclass
-class LogEntry:
-    cpu_id: int
-    timestamp: int
-    stall_mem: int
-    inst_retire: int
-    cpu_unhalt: int
-    llc_misses: int
-    sw_prefetch: int
-    imc_read: int = 0
-    imc_write: int = 0
-
-@dataclass
-class CPUState:
-    last_timestamp_ns: int
-    last_stall_mem: int
-    last_inst_retire: int
-    last_cpu_unhalt: int
-    last_llc_misses: int
-    last_sw_prefetch: int
-    last_imc_read: int = 0
-    last_imc_write: int = 0
-
-def read_log_entries(file_path: str, use_imc: bool = False) -> Iterator[LogEntry]:
-    """Stream log entries from file without loading everything into memory."""
+def read_logs_to_numpy(file_path: str, use_imc: bool = False) -> np.ndarray:
     if use_imc:
-        entry_format = "iqQQQQQQQ"  # Added two more Q for imc_read and imc_write
+        # Matches "iQQQQQQQQ" -> int32, uint64, uint64, ...
+        dt = np.dtype([
+            ('cpu_id', np.int32),
+            ('timestamp', np.uint64),
+            ('stall_mem', np.uint64),
+            ('inst_retire', np.uint64),
+            ('cpu_unhalt', np.uint64),
+            ('llc_misses', np.uint64),
+            ('sw_prefetch', np.uint64),
+            ('imc_read', np.uint64),
+            ('imc_write', np.uint64),
+        ])
     else:
-        entry_format = "iqQQQQQ"
-    entry_size = struct.calcsize(entry_format)
-    
-    with open(file_path, "rb") as f:
-        while True:
-            data = f.read(entry_size)
-            if not data or len(data) < entry_size:
-                break
-            
-            if use_imc:
-                cpu_id, ktime, stall_mem, inst_retire, cpu_unhalt, llc_misses, sw_prefetch, imc_read, imc_write = struct.unpack(entry_format, data)
-                yield LogEntry(cpu_id, ktime, stall_mem, inst_retire, cpu_unhalt, llc_misses, sw_prefetch, imc_read, imc_write)
-            else:
-                cpu_id, ktime, stall_mem, inst_retire, cpu_unhalt, llc_misses, sw_prefetch = struct.unpack(entry_format, data)
-                yield LogEntry(cpu_id, ktime, stall_mem, inst_retire, cpu_unhalt, llc_misses, sw_prefetch)
+        # Matches "iQQQQQQ"
+        dt = np.dtype([
+            ('cpu_id', np.int32),
+            ('timestamp', np.uint64),
+            ('stall_mem', np.uint64),
+            ('inst_retire', np.uint64),
+            ('cpu_unhalt', np.uint64),
+            ('llc_misses', np.uint64),
+            ('sw_prefetch', np.uint64),
+        ])
 
-# def get_cpu_file_positions(file_path: str) -> Dict[int, List[int]]:
-#     """Get file positions for each CPU's data for efficient seeking."""
-#     entry_format = "iqQQQQQ"
-#     entry_size = struct.calcsize(entry_format)
-#     cpu_positions = {}
-    
-#     with open(file_path, "rb") as f:
-#         pos = 0
-#         while True:
-#             data = f.read(entry_size)
-#             if not data or len(data) < entry_size:
-#                 break
-            
-#             cpu_id = struct.unpack("i", data[:4])[0]
-#             if cpu_id not in cpu_positions:
-#                 cpu_positions[cpu_id] = []
-#             cpu_positions[cpu_id].append(pos)
-#             pos += entry_size
-    
-#     return cpu_positions
+    print("Reading binary file into NumPy array...")
+    try:
+        data = np.fromfile(file_path, dtype=dt)
+        print(f"Read {len(data)} records to successfully.")
+        return data
+    except Exception as e:
+        print(f"Error reading file with NumPy: {e}")
+        return np.array([])
 
 def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bool, use_imc: bool):
     """Create database tables if they don't exist."""
@@ -108,7 +75,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                 CREATE TABLE IF NOT EXISTS performance_events (
                     id BIGINT,
                     cpu_id INTEGER,
-                    timestamp_ns BIGINT,
+                    timestamp_ns UBIGINT,
                     stalls_per_us DOUBLE,
                     inst_retire_rate DOUBLE,
                     cpu_usage DOUBLE,
@@ -116,20 +83,20 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     offcore_write_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
                     time_delta_ns BIGINT,
-                    stall_mem BIGINT,
-                    inst_retire BIGINT,
-                    cpu_unhalt BIGINT,
-                    offcore_read BIGINT,
-                    offcore_write BIGINT
+                    stall_mem UBIGINT,
+                    inst_retire UBIGINT,
+                    cpu_unhalt UBIGINT,
+                    offcore_read UBIGINT,
+                    offcore_write UBIGINT
                     {}
                 )
-            """.format(", imc_read BIGINT, imc_write BIGINT" if use_imc else ""))
+            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
         else:
             con.execute("""
                 CREATE TABLE IF NOT EXISTS performance_events (
                     id BIGINT,
                     cpu_id INTEGER,
-                    timestamp_ns BIGINT,
+                    timestamp_ns UBIGINT,
                     stalls_per_us DOUBLE,
                     inst_retire_rate DOUBLE,
                     cpu_usage DOUBLE,
@@ -137,21 +104,21 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     sw_prefetch_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
                     time_delta_ns BIGINT,
-                    stall_mem BIGINT,
-                    inst_retire BIGINT,
-                    cpu_unhalt BIGINT,
-                    llc_misses BIGINT,
-                    sw_prefetch BIGINT
+                    stall_mem UBIGINT,
+                    inst_retire UBIGINT,
+                    cpu_unhalt UBIGINT,
+                    llc_misses UBIGINT,
+                    sw_prefetch UBIGINT
                     {}
                 )
-            """.format(", imc_read BIGINT, imc_write BIGINT" if use_imc else ""))
+            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
     else:
         if use_offcore:
             con.execute("""
                 CREATE TABLE IF NOT EXISTS performance_events (
                     id BIGINT,
                     cpu_id INTEGER,
-                    timestamp_ns BIGINT,
+                    timestamp_ns UBIGINT,
                     stalls_per_us DOUBLE,
                     inst_retire_rate DOUBLE,
                     cpu_usage DOUBLE,
@@ -161,13 +128,13 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     time_delta_ns BIGINT
                     {}
                 )
-            """.format(", imc_read BIGINT, imc_write BIGINT" if use_imc else ""))
+            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
         else:
             con.execute("""
                 CREATE TABLE IF NOT EXISTS performance_events (
                     id BIGINT,
                     cpu_id INTEGER,
-                    timestamp_ns BIGINT,
+                    timestamp_ns UBIGINT,
                     stalls_per_us DOUBLE,
                     inst_retire_rate DOUBLE,
                     cpu_usage DOUBLE,
@@ -177,200 +144,114 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     time_delta_ns BIGINT
                     {}
                 )
-            """.format(", imc_read BIGINT, imc_write BIGINT" if use_imc else ""))
+            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
     
     con.execute("""
         CREATE TABLE IF NOT EXISTS node_memory_bandwidth (
             id BIGINT,
-            start_time_ns BIGINT,
-            end_time_ns BIGINT,
+            start_time_ns UBIGINT,
+            end_time_ns UBIGINT,
             memory_bandwidth_bytes_per_us DOUBLE
         )
     """)
 
-def insert_batch(con: duckdb.DuckDBPyConnection, table_name: str, batch_data: List[Tuple], 
-                use_raw: bool, use_offcore: bool, use_imc: bool):
-    """Insert a batch of data directly into DuckDB."""
-    if not batch_data:
+def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool, 
+                            tsc_per_us: float, use_offcore: bool, use_imc: bool,
+                            db_path: str):
+    print("Reading all log entries into memory...")
+    
+    numpy_data = read_logs_to_numpy(perf_log_path, use_imc)
+    if numpy_data.size == 0:
+        print("Log file is empty or could not be read.")
         return
-    
-    if table_name == "performance_events":
-        if use_raw:
-            if use_offcore:
-                if use_imc:
-                    placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                else:
-                    placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            else:
-                if use_imc:
-                    placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                else:
-                    placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        else:
-            if use_offcore:
-                if use_imc:
-                    placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                else:
-                    placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            else:
-                if use_imc:
-                    placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                else:
-                    placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    else:  # node_memory_bandwidth
-        placeholders = "(?, ?, ?, ?)"
-    
-    values_list = ", ".join([placeholders] * len(batch_data))
-    flat_data = [item for sublist in batch_data for item in sublist]
-    
-    con.execute(f"INSERT INTO {table_name} VALUES {values_list}", flat_data)
 
-def parse_hrperf_log(perf_log_path: str, use_raw: bool, use_tsc_ts: bool, 
-                    tsc_per_us: float, use_offcore: bool, use_imc: bool, batch_size: int = 10000):
-    """Memory-efficient parser using streaming and batch processing."""
-    con = duckdb.connect(database="analysis.duckdb")
+    # Process the NumPy data
+    print("Converting to Polars DataFrame...")
+    df = pl.from_numpy(numpy_data)
+
+    print(f"Total log entries read: {df.height}")
+    assert df.height == numpy_data.size, "DataFrame height does not match NumPy array size."
+
+    # Sort by cpu_id and timestamp to ensure correct order for delta calculations
+    df = df.sort(["cpu_id", "timestamp"])
+
+    df = df.with_columns(
+        pl.col("timestamp").shift(1).over("cpu_id").alias("prev_timestamp"),
+        pl.col("stall_mem").shift(1).over("cpu_id").alias("prev_stall_mem"),
+        pl.col("inst_retire").shift(1).over("cpu_id").alias("prev_inst_retire"),
+        pl.col("cpu_unhalt").shift(1).over("cpu_id").alias("prev_cpu_unhalt"),
+        pl.col("llc_misses").shift(1).over("cpu_id").alias("prev_llc_misses"),
+        pl.col("sw_prefetch").shift(1).over("cpu_id").alias("prev_sw_prefetch"),
+    )
+
+    # Calculate time delta
+    if use_tsc_ts:
+        time_delta_ns = (pl.col("timestamp") - pl.col("prev_timestamp")) / tsc_per_us * 1e3
+    else:
+        time_delta_ns = pl.col("timestamp") - pl.col("prev_timestamp")
+    
+    time_delta_us = time_delta_ns / 1e3
+
+    # Filter out invalid time deltas
+    df = df.with_columns(
+        time_delta_ns=time_delta_ns,
+        time_delta_us=time_delta_us
+    ).filter(pl.col("time_delta_us") > 0) 
+
+    df = df.with_columns(
+        stalls_per_us=(pl.col("stall_mem") - pl.col("prev_stall_mem")) / pl.col("time_delta_us"),
+        inst_retire_rate=(pl.col("inst_retire") - pl.col("prev_inst_retire")) / pl.col("time_delta_us"),
+        cpu_usage=(pl.col("cpu_unhalt") - pl.col("prev_cpu_unhalt")) / (tsc_per_us * pl.col("time_delta_us")),
+        llc_misses_rate=(pl.col("llc_misses") - pl.col("prev_llc_misses")) / pl.col("time_delta_us"),
+        sw_prefetch_rate=(pl.col("sw_prefetch") - pl.col("prev_sw_prefetch")) / pl.col("time_delta_us"),
+    ).with_columns(
+        memory_bandwidth_bytes_per_us=(pl.col("llc_misses_rate") + pl.col("sw_prefetch_rate")) * 64
+    )
+
+    # Prepare final performance_events table
+    final_cols = [
+        "cpu_id", "timestamp_ns", "stalls_per_us", "inst_retire_rate", "cpu_usage",
+        "llc_misses_rate", "sw_prefetch_rate", "memory_bandwidth_bytes_per_us", "time_delta_ns"
+    ]
+    if use_raw:
+        final_cols.extend(["stall_mem", "inst_retire", "cpu_unhalt", "llc_misses", "sw_prefetch"])
+        if use_imc:
+            final_cols.extend(["imc_read", "imc_write"])
+
+    # Rename timestamp to timestamp_ns for consistency with schema
+    perf_df = df.rename({"timestamp": "timestamp_ns"}).select(final_cols)
+    # Add a unique ID
+    perf_df = perf_df.with_row_index("id", offset=1)
+
+
+    # Calculate Node Memory Bandwidth
+    print("Calculating node-wide memory bandwidth...")
+    node_bw_df = df.group_by("timestamp", maintain_order=True).agg(
+        pl.sum("memory_bandwidth_bytes_per_us").alias("total_memory_bandwidth")
+    ).sort("timestamp")
+    
+    node_bw_df = node_bw_df.with_columns(
+        start_time_ns=pl.col("timestamp"),
+        end_time_ns=pl.col("timestamp").shift(-1)
+    ).drop_nulls()
+
+    node_bw_df = node_bw_df.with_columns(
+        memory_bandwidth_bytes_per_us=pl.col("total_memory_bandwidth")
+    ).select(["start_time_ns", "end_time_ns", "memory_bandwidth_bytes_per_us"])
+    node_bw_df = node_bw_df.with_row_index("id", offset=1)
+
+
+    print("Writing data to DuckDB...")
+    con = duckdb.connect(database=db_path)
     create_tables(con, use_raw, use_offcore, use_imc)
-    
-    # Get all entries sorted by timestamp for proper processing
-    entries = list(read_log_entries(perf_log_path, use_imc))
-    entries.sort(key=lambda x: x.timestamp)
-    
-    # Process entries in batches
-    cpu_states: Dict[int, Optional[CPUState]] = {}
-    per_core_memory_bandwidth: Dict[int, float] = {}
-    total_memory_bandwidth = 0.0
-    last_global_timestamp_ns = None
-    
-    unique_id_perf = 1
-    unique_id_node_bw = 1
-    
-    perf_batch = []
-    node_bw_batch = []
-    
-    for entry in entries:
-        cpu_id = entry.cpu_id
-        
-        # Initialize CPU state if first time seeing this CPU
-        if cpu_id not in cpu_states:
-            cpu_states[cpu_id] = None
-            per_core_memory_bandwidth[cpu_id] = 0.0
-        
-        state = cpu_states[cpu_id]
-        if state is None:
-            # Initialize first record for this CPU
-            cpu_states[cpu_id] = CPUState(
-                entry.timestamp, entry.stall_mem, entry.inst_retire,
-                entry.cpu_unhalt, entry.llc_misses, entry.sw_prefetch,
-                entry.imc_read, entry.imc_write
-            )
-            continue
-        
-        # Calculate time delta
-        if use_tsc_ts:
-            time_delta_ns = (entry.timestamp - state.last_timestamp_ns) / tsc_per_us * 1e3
-        else:
-            time_delta_ns = entry.timestamp - state.last_timestamp_ns
-        
-        time_delta_us = time_delta_ns / 1e3
-        
-        if time_delta_us <= 0:
-            # Update state and continue
-            cpu_states[cpu_id] = CPUState(
-                entry.timestamp, entry.stall_mem, entry.inst_retire,
-                entry.cpu_unhalt, entry.llc_misses, entry.sw_prefetch,
-                entry.imc_read, entry.imc_write
-            )
-            continue
-        
-        # Compute differences and rates
-        stall_mem_diff = entry.stall_mem - state.last_stall_mem
-        inst_retire_diff = entry.inst_retire - state.last_inst_retire
-        cpu_unhalt_diff = entry.cpu_unhalt - state.last_cpu_unhalt
-        llc_misses_diff = entry.llc_misses - state.last_llc_misses
-        sw_prefetch_diff = entry.sw_prefetch - state.last_sw_prefetch
 
-        # imc_read_diff = entry.imc_read - state.last_imc_read
-        # imc_write_diff = entry.imc_write - state.last_imc_write
-
-        stalls_per_us = stall_mem_diff / time_delta_us
-        inst_retire_rate = inst_retire_diff / time_delta_us
-        cpu_usage = cpu_unhalt_diff / (tsc_per_us * time_delta_us)
-        llc_misses_rate = llc_misses_diff / time_delta_us
-        sw_prefetch_rate = sw_prefetch_diff / time_delta_us
-        # imc_read_rate = imc_read_diff / time_delta_us
-        # imc_write_rate = imc_write_diff / time_delta_us
-        memory_bandwidth = (llc_misses_rate + sw_prefetch_rate) * 64
-        
-        # Update total memory bandwidth
-        old_memory_bandwidth_core = per_core_memory_bandwidth[cpu_id]
-        per_core_memory_bandwidth[cpu_id] = memory_bandwidth
-        total_memory_bandwidth = total_memory_bandwidth - old_memory_bandwidth_core + memory_bandwidth
-        
-        # Build performance event tuple
-        perf_row = [
-            unique_id_perf, cpu_id, entry.timestamp, stalls_per_us,
-            inst_retire_rate, cpu_usage
-        ]
-        
-        perf_row.extend([llc_misses_rate, sw_prefetch_rate])
-        perf_row.extend([total_memory_bandwidth, int(time_delta_ns)])
-        
-        # if use_imc:
-        #     perf_row.extend([imc_read_rate, imc_write_rate])
-
-        if use_raw:
-            perf_row.extend([
-                entry.stall_mem, entry.inst_retire, entry.cpu_unhalt,
-                entry.llc_misses, entry.sw_prefetch
-            ])
-            if use_imc:
-                perf_row.extend([entry.imc_read, entry.imc_write])
-        
-        perf_batch.append(tuple(perf_row))
-        unique_id_perf += 1
-        
-        # Update node memory bandwidth
-        if (last_global_timestamp_ns is not None and 
-            entry.timestamp > last_global_timestamp_ns):
-            node_bw_row = (
-                unique_id_node_bw, last_global_timestamp_ns,
-                entry.timestamp, total_memory_bandwidth
-            )
-            node_bw_batch.append(node_bw_row)
-            unique_id_node_bw += 1
-        
-        last_global_timestamp_ns = (
-            entry.timestamp if last_global_timestamp_ns is None
-            else max(last_global_timestamp_ns, entry.timestamp)
-        )
-        
-        # Update CPU state
-        cpu_states[cpu_id] = CPUState(
-            entry.timestamp, entry.stall_mem, entry.inst_retire,
-            entry.cpu_unhalt, entry.llc_misses, entry.sw_prefetch,
-            entry.imc_read, entry.imc_write
-        )
-        
-        # Insert batches when they reach the batch size
-        if len(perf_batch) >= batch_size:
-            insert_batch(con, "performance_events", perf_batch, use_raw, use_offcore, use_imc)
-            perf_batch = []
-        
-        if len(node_bw_batch) >= batch_size:
-            insert_batch(con, "node_memory_bandwidth", node_bw_batch, use_raw, use_offcore, use_imc)
-            node_bw_batch = []
-    
-    # Insert remaining data
-    if perf_batch:
-        insert_batch(con, "performance_events", perf_batch, use_raw, use_offcore, use_imc)
-    if node_bw_batch:
-        insert_batch(con, "node_memory_bandwidth", node_bw_batch, use_raw, use_offcore, use_imc)
+    con.execute("INSERT INTO performance_events SELECT * FROM perf_df")
+    con.execute("INSERT INTO node_memory_bandwidth SELECT * FROM node_bw_df")
     
     con.close()
-    
-    print("Processed performance data has been inserted into 'performance_events' table in 'analysis.duckdb'.")
-    print("Node memory bandwidth data has been inserted into 'node_memory_bandwidth' table in 'analysis.duckdb'.")
 
+    print(f"Processed performance data has been inserted into 'performance_events' table in '{db_path}'.")
+    print(f"Node memory bandwidth data has been inserted into 'node_memory_bandwidth' table in '{db_path}'.")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -404,12 +285,11 @@ def main():
         help="Indicates if IMC counters are used (input data has two extra imc_read and imc_write fields).",
     )
     parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=10000,
-        help="Batch size for database insertions (default: 10000).",
+        "--db_path",
+        type=str,
+        default="analysis.duckdb",
+        help="Path to the DuckDB database file to store results.",
     )
-
     args = parser.parse_args()
 
     if not os.path.isfile(args.perf_log_path):
@@ -436,21 +316,23 @@ def main():
             "Warning: Offcore counters are not enabled in the hiresperf config file. Ensure the data is using offcore counters. Otherwise, parsing will be incorrect."
         )
         
+    if not os.path.isabs(args.db_path):
+        args.db_path = os.path.abspath(args.db_path)
+
     print(f"Using TSC timestamps: {use_tsc_ts}, TSC frequency: {tsc_per_us} cycles/us")
+    print(f"Add raw counters: {args.raw_counter}") 
     print(f"Using offcore counters: {use_offcore}")
     print(f"Using imc counters: {use_imc}")
-    print(f"Using raw counters: {args.raw_counter}") 
-
-    parse_hrperf_log(
+    
+    parse_hrperf_log_polars(
         perf_log_path=args.perf_log_path,
         use_raw=args.raw_counter,
-        use_tsc_ts=use_tsc_ts,
-        tsc_per_us=tsc_per_us,
-        use_offcore=use_offcore,
-        use_imc=use_imc,
-        batch_size=args.batch_size,
+        use_tsc_ts=args.tsc_ts,
+        tsc_per_us=args.tsc_freq,
+        use_offcore=args.use_offcore,
+        use_imc=args.use_imc,
+        db_path=args.db_path,
     )
-
 
 if __name__ == "__main__":
     main()
