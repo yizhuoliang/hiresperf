@@ -17,6 +17,10 @@ typedef struct {
     unsigned long long cpu_unhalt;
     unsigned long long llc_misses;
     unsigned long long sw_prefetch;
+#ifdef HRP_LOG_IMC
+    unsigned long long imc_reads;
+    unsigned long long imc_writes;
+#endif
 } HrperfTick;
 
 typedef struct {

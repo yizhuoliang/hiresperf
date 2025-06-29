@@ -60,7 +60,12 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
 #define HRP_ARCH_NAME SAPPHIRE
 
 #define HRP_USE_OFFCORE 1 // set to 1 for using offcore reads/writes PMUs, 0 for using cache-miss/prefetch PMUs
+#define HRP_LOG_IMC     1 // set to 1 to log IMC uncore PMU events, 0 to disable
 
+// Specify which core the IMC event will be stored at.
+// when logging the IMC events, we only log the total reads/writes numbers to one core.
+// other cores will have zero values for IMC events.
+#define HRP_IMC_DATA_ASSOCIATED_CORE 0
 
 // DO NOT EDIT! These will be composed with the above HRP_ARCH_NAME
 // Helper macros for proper token pasting

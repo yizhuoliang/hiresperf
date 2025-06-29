@@ -6,7 +6,7 @@
 #include <linux/timekeeping.h>
 #include <linux/types.h>
 
-#include "../include/common.h"
+#include "common.h"
 
 static u64 cycles_per_us ALIGN_TO_CACHE_LINE = 0;
 
