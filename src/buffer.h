@@ -7,11 +7,7 @@
 #include "config.h"
 
 typedef struct {
-#ifdef HRP_USE_TSC
     u64 kts;
-#else
-    ktime_t kts;
-#endif
     unsigned long long stall_mem;
     unsigned long long inst_retire;
     unsigned long long cpu_unhalt;
@@ -23,7 +19,7 @@ typedef struct {
 #endif
 } HrperfTick;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
     int cpu_id;
     HrperfTick tick;
 } HrperfLogEntry;
