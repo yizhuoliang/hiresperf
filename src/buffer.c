@@ -12,7 +12,7 @@
 #include "buffer.h"
 #include "config.h"
 
-#ifdef HRP_EXLARGE_HEAP_ALLOCATED_RB
+#if HRP_EXLARGE_HEAP_ALLOCATED_RB
 static struct page **buffer_pages;
 static size_t buffer_num_pages = 0;
 
@@ -32,7 +32,7 @@ static void free_alloc_pages(void) {
 static int hrp_alloc_rb_buf(HrperfRingBuffer *rb) {
     HrperfLogEntry *buf = NULL;
     size_t buf_size = HRP_PMC_BUFFER_SIZE * sizeof(HrperfLogEntry);
-#ifdef HRP_EXLARGE_HEAP_ALLOCATED_RB
+#if HRP_EXLARGE_HEAP_ALLOCATED_RB
     unsigned long page_aligned_buf_size = PAGE_ALIGN(buf_size);
     buffer_num_pages = page_aligned_buf_size / PAGE_SIZE;
     buffer_pages = kcalloc(buffer_num_pages, sizeof(struct page *), GFP_KERNEL);
@@ -61,7 +61,7 @@ static int hrp_alloc_rb_buf(HrperfRingBuffer *rb) {
 #else
     buf = kmalloc(buf_size, GFP_KERNEL | __GFP_ZERO);
     if (!buf) {
-        pr_err("hrperf: Failed to allocate buffer of size %zu for rb on cpu %d\n", buf_size, cpu);
+        pr_err("hrperf: Failed to allocate buffer of size %zu for rb\n", buf_size);
         return -ENOMEM;
     }
 #endif
@@ -76,7 +76,7 @@ inline __attribute__((always_inline)) bool is_full(const HrperfRingBuffer *rb) {
 inline __attribute__((always_inline)) int init_ring_buffer(HrperfRingBuffer *rb) {
     rb->head = 0;
     rb->tail = 0;
-#ifdef HRP_HEAP_ALLOCATED_RB
+#if HRP_HEAP_ALLOCATED_RB
     int r = hrp_alloc_rb_buf(rb);
     return r;
 #else

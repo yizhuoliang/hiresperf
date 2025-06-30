@@ -13,7 +13,7 @@ typedef struct {
     unsigned long long cpu_unhalt;
     unsigned long long llc_misses;
     unsigned long long sw_prefetch;
-#ifdef HRP_LOG_IMC
+#if HRP_LOG_IMC
     unsigned long long imc_reads;
     unsigned long long imc_writes;
 #endif
@@ -25,7 +25,7 @@ typedef struct __attribute__((__packed__)) {
 } HrperfLogEntry;
 
 typedef struct {
-#ifdef HRP_HEAP_ALLOCATED_RB
+#if HRP_HEAP_ALLOCATED_RB
     HrperfLogEntry *buffer;
 #else
     HrperfLogEntry buffer[HRP_PMC_BUFFER_SIZE];
