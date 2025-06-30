@@ -41,10 +41,12 @@ typedef struct hrperf_poller_data {
 static struct workqueue_struct *instructed_log_wq;
 static DEFINE_PER_CPU(struct work_struct, instructed_log_w);
 
+#if HRP_STRICT_POLLING_SYNC
 // for forcing synchronization across all PMUs polling.
 static atomic_t ready_cpus;
 static atomic_t start_flag;
 static atomic_t done_cpus;
+#endif
 static u32 N_CPUS = 0;
 
 static DEFINE_PER_CPU(HrperfRingBuffer, per_cpu_buffer);
@@ -112,11 +114,13 @@ static void hrperf_pmc_enable_and_esel(void *info) {
 
 // Function to be called on each CPU by smp_call_function_many
 static void hrperf_poller_func(void *info) {
+#if HRP_STRICT_POLLING_SYNC
   preempt_disable();
   atomic_inc(&ready_cpus);
   // Wait for all CPUs to be ready
   while (!atomic_read(&start_flag))
     cpu_relax();
+#endif
 
   HrperfLogEntry entry;
   entry.cpu_id = smp_processor_id();
@@ -128,7 +132,7 @@ static void hrperf_poller_func(void *info) {
   rdmsrl(MSR_IA32_FIXED_CTR1, entry.tick.cpu_unhalt);
   rdmsrl(MSR_IA32_PMC0, entry.tick.llc_misses);
   rdmsrl(MSR_IA32_PMC1, entry.tick.sw_prefetch);
-#ifdef HRP_LOG_IMC
+#if HRP_LOG_IMC
   if (entry.cpu_id == HRP_IMC_DATA_ASSOCIATED_CORE) {
     freeze_all_counters();
     entry.tick.imc_reads = get_imc_reads();
@@ -140,16 +144,20 @@ static void hrperf_poller_func(void *info) {
   }
 #endif
 
+#if HRP_STRICT_POLLING_SYNC
   atomic_inc(&done_cpus);
   preempt_enable();
+#endif
 
-  // pr_info("hrperf: CPU %d polled at kts %llu\n", entry.cpu_id, entry.tick.kts);
   enqueue(this_cpu_ptr(&per_cpu_buffer), entry);
 }
 
 static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
+#if HRP_STRICT_POLLING_SYNC
   preempt_disable();
-#ifdef HRP_USE_TSC
+#endif
+
+#if HRP_USE_TSC
   poller_data->kts = __rdtsc();
 #else
 #if HRP_USE_RAW_CLOCK
@@ -163,6 +171,7 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
 #endif
 #endif
 
+#if HRP_STRICT_POLLING_SYNC
   atomic_set(&ready_cpus, 0);
   atomic_set(&start_flag, 0);
   atomic_set(&done_cpus, 0);
@@ -170,18 +179,32 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
   smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func,
                          (void *)poller_data, 0);
   
+  pr_info("hrperf: All poller threads dispatched.\n");
+#if HRP_POLL_POLLER_CORE
   // Current CPU also participates
   atomic_inc(&ready_cpus);
+#endif
     
   // Wait for all CPUs to be ready
   while (atomic_read(&ready_cpus) < N_CPUS)
       cpu_relax();
   
   atomic_set(&start_flag, 1);
+  
+#if HRP_POLL_POLLER_CORE
   hrperf_poller_func((void*) poller_data);
+#endif
+
   preempt_enable();
   while (atomic_read(&done_cpus) < N_CPUS)
     cpu_relax();
+#else
+  smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func,
+                         (void *)poller_data, 1);
+#if HRP_POLL_POLLER_CORE
+  hrperf_poller_func((void*) poller_data);
+#endif
+#endif
 }
 
 // Single poller thread function for initiating the smp_call_function_many
@@ -308,7 +331,7 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
 static int __init hrp_pmc_init(void) {
   printk(KERN_INFO "hrperf: Initializing LKM\n");
 
-#ifdef HRP_USE_TSC
+#if HRP_USE_TSC
   u64 tsc_cycle = hrp_calibrate_tsc();
   if (tsc_cycle == 0) {
     pr_err("hrperf: TSC calibration failed.\n");
@@ -366,6 +389,14 @@ static int __init hrp_pmc_init(void) {
               HRP_PMC_CPU_SELECTION_MASK_BITS);
   
   N_CPUS = cpumask_weight(&hrp_selected_cpus);
+#if (HRP_POLL_POLLER_CORE != 1)
+  // not poll on the poller core, so reduce one CPU
+  N_CPUS = (N_CPUS > 0) ? (N_CPUS - 1) : 0;
+#endif
+  if (N_CPUS <= 0 || N_CPUS > NR_CPUS) {
+    pr_err("hrperf: No/Too many CPUs selected for monitoring. Please check the CPU selection mask.\n");
+    return -EINVAL;
+  }
   pr_info("hrperf: Number of selected CPUs: %u\n", N_CPUS);
 
   // Initialize per-CPU ring buffers
@@ -382,7 +413,11 @@ static int __init hrp_pmc_init(void) {
   // step 2.2: enable the counters and make event selections
   smp_call_function_many(&hrp_selected_cpus, hrperf_pmc_enable_and_esel, NULL,
                          1);
-#ifdef HRP_LOG_IMC
+#if HRP_POLL_POLLER_CORE
+  hrperf_pmc_enable_and_esel(NULL); // also enable on the current CPU
+#endif
+
+#if HRP_LOG_IMC
   // initialize IMC uncore PMUs
   init_g_uncore_pmus();
 #endif
@@ -391,6 +426,9 @@ static int __init hrp_pmc_init(void) {
 #if ENABLE_USER_SPACE_POLLING
   smp_call_function_many(&hrp_selected_cpus, enable_rdpmc_in_user_space, NULL,
                          1);
+#if HRP_POLL_POLLER_CORE
+  hrperf_pmc_enable_and_esel(NULL); // also enable on the current CPU
+#endif
 #endif
 
   if (instructed_profile) {
@@ -459,7 +497,7 @@ static void __exit hrp_pmc_exit(void) {
 
   hrperf_close_log_file(log_file);
 
-#ifdef HRP_LOG_IMC
+#if HRP_LOG_IMC
   destroy_g_uncore_pmus();
 #endif
 

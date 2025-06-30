@@ -20,6 +20,16 @@
 #define HRP_PMC_LOGGER_CPU 0
 #define HRP_PMC_POLLER_CPU 1
 
+// Set to 1 to enforce strict synchronization across all PMU polling
+// When enabled, all poller functions across all CPUs will use a barrier 
+// to synchronize the start. Therefore, this mechanism can maximally 
+// reduce the time difference across PMU polling on different CPUs.
+#define HRP_STRICT_POLLING_SYNC 1
+
+// Set to 1 to also poll the PMUs on the core where the poller job is executed.
+// If set to 0, the poller core will not poll its own PMUs.
+#define HRP_POLL_POLLER_CORE 1
+
 // set to 1 for ktime_get_raw(), 0 for ktime_get_real()
 // LDB timestamps use the raw clock, also corresponding to perf sched record -k CLOCK_MONOTONIC_RAW
 #define HRP_USE_RAW_CLOCK 0
