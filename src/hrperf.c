@@ -124,7 +124,6 @@ static void hrperf_poller_func(void *info) {
 
   HrperfLogEntry entry;
   entry.cpu_id = smp_processor_id();
-  pr_info("hrperf: CPU %d polled.\n", entry.cpu_id);
   hrperf_poller_data_t *data = (hrperf_poller_data_t *)info;
   entry.tick.kts = data->kts;
   rdmsrl(MSR_IA32_PMC2, entry.tick.stall_mem);
@@ -178,8 +177,6 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
 
   smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func,
                          (void *)poller_data, 0);
-  
-  pr_info("hrperf: All poller threads dispatched.\n");
 #if HRP_POLL_POLLER_CORE
   // Current CPU also participates
   atomic_inc(&ready_cpus);
@@ -248,8 +245,6 @@ static int hrperf_logger_thread(void *arg) {
 }
 
 static void instructed_log_op(struct work_struct *work) {
-  pr_info("hrperf: Instructed log operation started on CPU %d\n",
-          smp_processor_id());
   hrperf_poller_data_t poller_data;
   poller_data.kts = 0; // Initialize kts to 0, will be set in the poller
   smp_poll_pmus(&poller_data);
