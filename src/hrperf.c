@@ -90,11 +90,7 @@ static void hrperf_pmc_enable_and_esel(void *info) {
 #endif
 
 typedef struct hrperf_poller_data {
-#ifdef HRP_USE_TSC
   u64 kts;
-#else
-  ktime_t kts;
-#endif
 } hrperf_poller_data_t;
 
 // Function to be called on each CPU by smp_call_function_many
@@ -136,9 +132,21 @@ static int hrperf_poller_thread(void *arg) {
     poller_data.kts = __rdtsc();
 #else
 #if HRP_USE_RAW_CLOCK
-    poller_data.kts = ktime_get_raw();
+    // consider negative ktime_t values as errors and set to 0
+    ktime_t ts = ktime_get_raw();
+    if (ts < 0) {
+      poller_data.kts = 0;
+    } else {
+      poller_data.kts = (u64)ts;
+    }
 #else
-    poller_data.kts = ktime_get_real();
+    // consider negative ktime_t values as errors and set to 0
+    ktime_t ts = ktime_get_real();
+    if (ts < 0) {
+      poller_data.kts = 0;
+    } else {
+      poller_data.kts = (u64)ts;
+    }
 #endif
 #endif
 
