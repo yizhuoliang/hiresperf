@@ -29,6 +29,7 @@ static void free_alloc_pages(void) {
 }
 #endif
 
+#if HRP_HEAP_ALLOCATED_RB
 static int hrp_alloc_rb_buf(HrperfRingBuffer *rb) {
     HrperfLogEntry *buf = NULL;
     size_t buf_size = HRP_PMC_BUFFER_SIZE * sizeof(HrperfLogEntry);
@@ -68,6 +69,7 @@ static int hrp_alloc_rb_buf(HrperfRingBuffer *rb) {
     rb->buffer = buf;
     return 0;
 }
+#endif
 
 inline __attribute__((always_inline)) bool is_full(const HrperfRingBuffer *rb) {
     return ((rb->tail + 1) % HRP_PMC_BUFFER_SIZE) == rb->head;
