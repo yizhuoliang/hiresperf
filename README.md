@@ -18,8 +18,8 @@ Before building hiresperf, check and edit `src/config.h` carefully to make hardw
 
 **Build and install hiresperf**
 ```
-sudo make
-sudo make install
+make
+make install
 ```
 **Setup/cleanup the hiresperf kernel module**
 
