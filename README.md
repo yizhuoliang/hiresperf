@@ -39,6 +39,14 @@ For building LDB-instrumented compiler, see instructions in [the LDB repo](https
 Note that some apps requires further patching (e.g. toggling hiresperf start/pause, hint the compiler to avoid inlining key functions, etc). Such modified source files of each app is included in this repo's `apps/` directory (which is currently not so organized).
 
 **Toggle hiresperf kernel module**
+
+The hiresperf kernel module has two mode --- polling profile and instructed profile. By default, polling profile is used.
+
+- In the polling profile mode, two busy polling threads are spinning to poll the PMUs and log data to the file, respectively.
+- In the instructed profile mode, no busy polling threads are created. The hiresperf kernel module only poll or log data when you instruct it to do so. This can be handy in the case where you don't want the expensive polling cost and only care about the counter delta between two time points.
+
+**Use Polling Profile**
+
 There are two ways, first is including calls to `hrperf_start()`/`hrperf_pause()` in your program, using the C or Python helper functions in `install/`.
 
 The other way is to manually toggle it by
@@ -49,6 +57,29 @@ make
 ./start
 ```
 Either way it's just using `ioctl` to interact with the kernel module.
+
+**Use Instructed Profile**
+
+The instructed profile mode can be enabled when loading the hiresperf kernel module:
+``` bash
+sudo insmod hrperf.ko instructed_profile=y
+```
+
+After that, similarly, you can either invoke `hrperf_poll()`/`hrperf_log()`/`hrperf_poll_log()` in your program or manually use helper program in the `workloads` folder.
+
+For example:For example:
+``` bash
+cd workloads
+
+# Only poll the PMUs across all cores once (the data resides in a in-memory buffer)
+sudo ./instruct_poll
+
+# Or, only log any already polled data into the output file
+sudo ./insturct_log
+
+# Or, poll and log the reading into the output file
+sudo ./instruct_poll_log
+```
 
 **Running the app to profile it**
 Eventually, you will need to compose a command like

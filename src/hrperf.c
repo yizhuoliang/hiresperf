@@ -25,7 +25,31 @@
 #include "tsc.h"
 #include "uncore_pmu.h"
 
+static bool instructed_profile = false;
+module_param(instructed_profile, bool, S_IRUGO);
+MODULE_PARM_DESC(instructed_profile,
+                 "Enable instructed profiling where only one poll upon each "
+                 "request (default: false)");
+
 // for the poller, logger, and buffers
+typedef struct hrperf_poller_data {
+  u64 kts;
+} hrperf_poller_data_t;
+
+// for instructed profiling mode, to delegate the log handling to a specified
+// CPU.
+static struct workqueue_struct *instructed_profile_wq = NULL;
+static DEFINE_PER_CPU(struct work_struct, instructed_profile_w);
+typedef void(*instructed_profile_func_t)(struct work_struct *work);
+
+#if HRP_STRICT_POLLING_SYNC
+// for forcing synchronization across all PMUs polling.
+static atomic_t ready_cpus;
+static atomic_t start_flag;
+static atomic_t done_cpus;
+#endif
+static u32 N_CPUS = 0;
+
 static DEFINE_PER_CPU(HrperfRingBuffer, per_cpu_buffer);
 static struct task_struct *poller_thread;
 static struct task_struct *logger_thread;
@@ -89,12 +113,16 @@ static void hrperf_pmc_enable_and_esel(void *info) {
 }
 #endif
 
-typedef struct hrperf_poller_data {
-  u64 kts;
-} hrperf_poller_data_t;
-
 // Function to be called on each CPU by smp_call_function_many
 static void hrperf_poller_func(void *info) {
+#if HRP_STRICT_POLLING_SYNC
+  preempt_disable();
+  atomic_inc(&ready_cpus);
+  // Wait for all CPUs to be ready
+  while (!atomic_read(&start_flag))
+    cpu_relax();
+#endif
+
   HrperfLogEntry entry;
   entry.cpu_id = smp_processor_id();
   hrperf_poller_data_t *data = (hrperf_poller_data_t *)info;
@@ -104,7 +132,7 @@ static void hrperf_poller_func(void *info) {
   rdmsrl(MSR_IA32_FIXED_CTR1, entry.tick.cpu_unhalt);
   rdmsrl(MSR_IA32_PMC0, entry.tick.llc_misses);
   rdmsrl(MSR_IA32_PMC1, entry.tick.sw_prefetch);
-#ifdef HRP_LOG_IMC
+#if HRP_LOG_IMC
   if (entry.cpu_id == HRP_IMC_DATA_ASSOCIATED_CORE) {
     freeze_all_counters();
     entry.tick.imc_reads = get_imc_reads();
@@ -115,46 +143,88 @@ static void hrperf_poller_func(void *info) {
     entry.tick.imc_writes = 0;
   }
 #endif
+
+#if HRP_STRICT_POLLING_SYNC
+  atomic_inc(&done_cpus);
+  preempt_enable();
+#endif
+
   enqueue(this_cpu_ptr(&per_cpu_buffer), entry);
+}
+
+static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
+#if HRP_STRICT_POLLING_SYNC
+  preempt_disable();
+#endif
+
+#if HRP_USE_TSC
+  poller_data->kts = __rdtsc();
+#else
+#if HRP_USE_RAW_CLOCK
+  // consider negative ktime_t values as errors and set to 0
+  ktime_t ts = ktime_get_raw();
+  poller_data->kts = (ts < 0) ? 0 : (u64)ts;
+#else
+  // consider negative ktime_t values as errors and set to 0
+  ktime_t ts = ktime_get_real();
+  poller_data->kts = (ts < 0) ? 0 : (u64)ts;
+#endif
+#endif
+
+#if HRP_STRICT_POLLING_SYNC
+  atomic_set(&ready_cpus, 0);
+  atomic_set(&start_flag, 0);
+  atomic_set(&done_cpus, 0);
+
+  smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func,
+                         (void *)poller_data, 0);
+#if HRP_POLL_POLLER_CORE
+  // Current CPU also participates
+  atomic_inc(&ready_cpus);
+#endif
+    
+  // Wait for all CPUs to be ready
+  while (atomic_read(&ready_cpus) < N_CPUS)
+      cpu_relax();
+  
+  atomic_set(&start_flag, 1);
+  
+#if HRP_POLL_POLLER_CORE
+  hrperf_poller_func((void*) poller_data);
+#endif
+
+  preempt_enable();
+  while (atomic_read(&done_cpus) < N_CPUS)
+    cpu_relax();
+#else
+  smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func,
+                         (void *)poller_data, 1);
+#if HRP_POLL_POLLER_CORE
+  hrperf_poller_func((void*) poller_data);
+#endif
+#endif
 }
 
 // Single poller thread function for initiating the smp_call_function_many
 static int hrperf_poller_thread(void *arg) {
   hrperf_poller_data_t poller_data;
-
   while (!kthread_should_stop()) {
     if (!hrperf_running) {
       set_current_state(TASK_INTERRUPTIBLE);
       schedule(); // pause execution here
     }
 
-#ifdef HRP_USE_TSC
-    poller_data.kts = __rdtsc();
-#else
-#if HRP_USE_RAW_CLOCK
-    // consider negative ktime_t values as errors and set to 0
-    ktime_t ts = ktime_get_raw();
-    if (ts < 0) {
-      poller_data.kts = 0;
-    } else {
-      poller_data.kts = (u64)ts;
-    }
-#else
-    // consider negative ktime_t values as errors and set to 0
-    ktime_t ts = ktime_get_real();
-    if (ts < 0) {
-      poller_data.kts = 0;
-    } else {
-      poller_data.kts = (u64)ts;
-    }
-#endif
-#endif
-
-    smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func, &poller_data,
-                           1);
+    smp_poll_pmus(&poller_data);
     usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW, HRP_PMC_POLL_INTERVAL_US_HIGH);
   }
   return 0;
+}
+
+static __always_inline void log_for_all_cpus(void) {
+  int cpu;
+  for_each_cpu(cpu, &hrp_selected_cpus) {
+    log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), log_file);
+  }
 }
 
 // Logger thread function
@@ -170,10 +240,46 @@ static int hrperf_logger_thread(void *arg) {
 
     usleep_range(HRP_PMC_POLL_INTERVAL_US_LOW * HRP_PMC_POLLING_LOGGING_RATIO,
                  HRP_PMC_POLL_INTERVAL_US_HIGH * HRP_PMC_POLLING_LOGGING_RATIO);
-    int cpu;
-    for_each_cpu(cpu, &hrp_selected_cpus) {
-      log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), log_file);
+    log_for_all_cpus();
+  }
+  return 0;
+}
+
+static void instructed_poll_op(struct work_struct *work) {
+  hrperf_poller_data_t poller_data;
+  poller_data.kts = 0; // Initialize kts to 0, will be set in the poller
+  smp_poll_pmus(&poller_data);
+}
+
+static void instructed_log_op(struct work_struct *work) {
+  log_for_all_cpus();
+}
+
+static void instructed_poll_and_log(struct work_struct *work) {
+  instructed_poll_op(work);
+  instructed_log_op(work);
+}
+
+static __always_inline int enqueue_instructed_profile_op(instructed_profile_func_t func) {
+  if (instructed_profile) {
+    struct work_struct *work = this_cpu_ptr(&instructed_profile_w);
+    INIT_WORK(work, func);
+    if (work == NULL) {
+      pr_err("hrperf: Instructed log work struct is NULL.\n");
+      return -EFAULT;
     }
+    if (instructed_profile_wq == NULL) {
+      pr_err("hrperf: Instructed profile workqueue is NULL.\n");
+      return -EFAULT;
+    }
+    queue_work_on(HRP_PMC_POLLER_CPU, instructed_profile_wq, work);
+    flush_work(work);
+    printk(KERN_INFO
+            "hrperf: Instructed profiling - single poll and log done\n");
+  } else {
+    pr_warn("hrperf: Instructed profiling is not enabled. INSTRUCTED_POLL_AND_LOG "
+            "command is invalid.\n");
+    return -EINVAL;
   }
   return 0;
 }
@@ -183,6 +289,11 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
                          unsigned long arg) {
   switch (cmd) {
   case HRP_PMC_IOC_START:
+    if (instructed_profile) {
+      pr_warn("hrperf: Instructed profiling is enabled. START "
+              "command is invalid in this mode.\n");
+      return -EINVAL;
+    }
     if (!hrperf_running) {
       hrperf_running = true;
       wake_up_process(poller_thread);
@@ -191,6 +302,11 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
     }
     break;
   case HRP_PMC_IOC_PAUSE:
+    if (instructed_profile) {
+      pr_warn("hrperf: Instructed profiling is enabled. PAUSE "
+              "command is invalid in this mode.\n");
+      return -EINVAL;
+    }
     if (hrperf_running) {
       hrperf_running = false;
       printk(KERN_INFO "hrperf: Monitoring paused\n");
@@ -209,6 +325,30 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
     }
     break;
   }
+  case HRP_PMC_IOC_INSTRUCTED_POLL: {
+    // Perform a single poll operation
+    int ret = enqueue_instructed_profile_op(instructed_poll_op);
+    if (ret != 0) {
+      return ret;
+    }
+    break;
+  }
+  case HRP_PMC_IOC_INSTRUCTED_LOG: {
+    // Perform a single log operation
+    int ret = enqueue_instructed_profile_op(instructed_log_op);
+    if (ret != 0) {
+      return ret;
+    }
+    break;
+  }
+  case HRP_PMC_IOC_INSTRUCTED_POLL_AND_LOG: {
+    // Perform a single poll and log operation
+    int ret = enqueue_instructed_profile_op(instructed_poll_and_log);
+    if (ret != 0) {
+      return ret;
+    }
+    break;
+  }
   default:
     return -ENOTTY;
   }
@@ -218,7 +358,7 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
 static int __init hrp_pmc_init(void) {
   printk(KERN_INFO "hrperf: Initializing LKM\n");
 
-#ifdef HRP_USE_TSC
+#if HRP_USE_TSC
   u64 tsc_cycle = hrp_calibrate_tsc();
   if (tsc_cycle == 0) {
     pr_err("hrperf: TSC calibration failed.\n");
@@ -274,6 +414,17 @@ static int __init hrp_pmc_init(void) {
   // copy the 256-bit CPU selection mask into hrp_selected_cpus
   bitmap_copy(cpumask_bits(&hrp_selected_cpus), hrp_pmc_cpu_selection_mask_bits,
               HRP_PMC_CPU_SELECTION_MASK_BITS);
+  
+  N_CPUS = cpumask_weight(&hrp_selected_cpus);
+#if (HRP_POLL_POLLER_CORE != 1)
+  // not poll on the poller core, so reduce one CPU
+  N_CPUS = (N_CPUS > 0) ? (N_CPUS - 1) : 0;
+#endif
+  if (N_CPUS <= 0 || N_CPUS > NR_CPUS) {
+    pr_err("hrperf: No/Too many CPUs selected for monitoring. Please check the CPU selection mask.\n");
+    return -EINVAL;
+  }
+  pr_info("hrperf: Number of selected CPUs: %u\n", N_CPUS);
 
   // Initialize per-CPU ring buffers
   int cpu;
@@ -289,7 +440,11 @@ static int __init hrp_pmc_init(void) {
   // step 2.2: enable the counters and make event selections
   smp_call_function_many(&hrp_selected_cpus, hrperf_pmc_enable_and_esel, NULL,
                          1);
-#ifdef HRP_LOG_IMC
+#if HRP_POLL_POLLER_CORE
+  hrperf_pmc_enable_and_esel(NULL); // also enable on the current CPU
+#endif
+
+#if HRP_LOG_IMC
   // initialize IMC uncore PMUs
   init_g_uncore_pmus();
 #endif
@@ -298,18 +453,27 @@ static int __init hrp_pmc_init(void) {
 #if ENABLE_USER_SPACE_POLLING
   smp_call_function_many(&hrp_selected_cpus, enable_rdpmc_in_user_space, NULL,
                          1);
+#if HRP_POLL_POLLER_CORE
+  hrperf_pmc_enable_and_esel(NULL); // also enable on the current CPU
+#endif
 #endif
 
-  // Initialize poller thread
-  poller_thread = kthread_create(hrperf_poller_thread, NULL, "poller_thread");
-  if (IS_ERR(poller_thread)) {
-    printk(KERN_ERR "Failed to create the poller thread\n");
-    return PTR_ERR(poller_thread);
-  }
+  if (instructed_profile) {
+    poller_thread = NULL;
+    pr_info(
+        "hrperf: Instructed profiling enabled, poller thread not created\n");
+  } else {
+    // Initialize poller thread
+    poller_thread = kthread_create(hrperf_poller_thread, NULL, "poller_thread");
+    if (IS_ERR(poller_thread)) {
+      printk(KERN_ERR "Failed to create the poller thread\n");
+      return PTR_ERR(poller_thread);
+    }
 
-  // Bind to the core before start running!
-  kthread_bind(poller_thread, HRP_PMC_POLLER_CPU);
-  wake_up_process(poller_thread);
+    // Bind to the core before start running!
+    kthread_bind(poller_thread, HRP_PMC_POLLER_CPU);
+    wake_up_process(poller_thread);
+  }
 
   // step 3: init log file
   log_file = hrperf_init_log_file();
@@ -318,14 +482,28 @@ static int __init hrp_pmc_init(void) {
     // Handle the error appropriately
   }
 
-  // Initialize logger thread
-  logger_thread = kthread_create(hrperf_logger_thread, NULL, "logger_thread");
-  if (IS_ERR(logger_thread)) {
-    printk(KERN_ERR "Failed to create the logger thread\n");
-    return PTR_ERR(logger_thread);
+  if (instructed_profile) {
+    logger_thread = NULL;
+    pr_info(
+        "hrperf: Instructed profiling enabled, logger thread not created\n");
+  } else {
+    // Initialize logger thread
+    logger_thread = kthread_create(hrperf_logger_thread, NULL, "logger_thread");
+    if (IS_ERR(logger_thread)) {
+      printk(KERN_ERR "Failed to create the logger thread\n");
+      return PTR_ERR(logger_thread);
+    }
+    kthread_bind(logger_thread, HRP_PMC_LOGGER_CPU);
+    wake_up_process(logger_thread);
   }
-  kthread_bind(logger_thread, HRP_PMC_LOGGER_CPU);
-  wake_up_process(logger_thread);
+  
+  if (instructed_profile) {
+    instructed_profile_wq = alloc_workqueue("hrp_inst_log_wq", WQ_HIGHPRI, 0);
+    if (instructed_profile_wq == NULL) {
+      pr_err("hrperf: Failed to create instructed log workqueue.\n");
+      return -ENOMEM;
+    }
+  }
 
   return 0;
 }
@@ -338,10 +516,15 @@ static void __exit hrp_pmc_exit(void) {
   if (poller_thread) {
     kthread_stop(poller_thread);
   }
+  
+  if (instructed_profile_wq) {
+    flush_workqueue(instructed_profile_wq);
+    destroy_workqueue(instructed_profile_wq);
+  }
 
   hrperf_close_log_file(log_file);
 
-#ifdef HRP_LOG_IMC
+#if HRP_LOG_IMC
   destroy_g_uncore_pmus();
 #endif
 
