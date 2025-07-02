@@ -67,10 +67,26 @@ After this, you should get data files
 3. a `perf.data` file containing the scheduling info
 
 ## Parsing and analyzing the results
-Firstly spin-up a virtual env with our python dependencies:
+
+Parsing and analyzing scripts are written in Python.
+
+### Dependencies
+
+We use [`uv`](https://docs.astral.sh/uv/) to manage dependencies for these Python scripts.
+
+To prepare the environment, please first ensure the `uv` is properly installed from their official website: https://docs.astral.sh/uv/
+
+Then, you can run
+``` bash
+# cd to the root dir of this project
+uv sync
 ```
-source ./bin/workon.sh
-```
+
+`uv` will prepare a python virtual environment which comes with all required dependencies. 
+
+To activate the Python venv manually, run `source .venv/bin/activate` in the project root directory.
+
+### Script Documentations
 
 Then, parsing both LDB, hiresperf, and analysis can be done with the scripts under `parsing/`, which all read and writes to a duckdb instance `analysis.duckdb`. More details in [this doc](docs/parsing.md).
 
