@@ -99,10 +99,12 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
 #define HRP_PMC_DEVICE_NAME "hrperf_device"
 #define HRP_PMC_CLASS_NAME "hrperf_class"
 #define HRP_PMC_IOC_MAGIC  'k'
-#define HRP_PMC_IOC_START           _IO(HRP_PMC_IOC_MAGIC, 1)
-#define HRP_PMC_IOC_PAUSE           _IO(HRP_PMC_IOC_MAGIC, 2)
-#define HRP_PMC_IOC_INSTRUCTED_LOG  _IO(HRP_PMC_IOC_MAGIC, 3)
-#define HRP_PMC_IOC_TSC_FREQ        _IOR(HRP_PMC_IOC_MAGIC, 10, u64)
+#define HRP_PMC_IOC_START                   _IO(HRP_PMC_IOC_MAGIC, 1)
+#define HRP_PMC_IOC_PAUSE                   _IO(HRP_PMC_IOC_MAGIC, 2)
+#define HRP_PMC_IOC_INSTRUCTED_POLL         _IO(HRP_PMC_IOC_MAGIC, 3)
+#define HRP_PMC_IOC_INSTRUCTED_LOG          _IO(HRP_PMC_IOC_MAGIC, 4)
+#define HRP_PMC_IOC_INSTRUCTED_POLL_AND_LOG _IO(HRP_PMC_IOC_MAGIC, 5)
+#define HRP_PMC_IOC_TSC_FREQ                _IOR(HRP_PMC_IOC_MAGIC, 10, u64)
 
 /*
     BPF Component Configurations, CURRENTLY NOT USED!

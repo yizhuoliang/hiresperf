@@ -38,8 +38,9 @@ typedef struct hrperf_poller_data {
 
 // for instructed profiling mode, to delegate the log handling to a specified
 // CPU.
-static struct workqueue_struct *instructed_log_wq;
-static DEFINE_PER_CPU(struct work_struct, instructed_log_w);
+static struct workqueue_struct *instructed_profile_wq = NULL;
+static DEFINE_PER_CPU(struct work_struct, instructed_profile_w);
+typedef void(*instructed_profile_func_t)(struct work_struct *work);
 
 #if HRP_STRICT_POLLING_SYNC
 // for forcing synchronization across all PMUs polling.
@@ -244,11 +245,43 @@ static int hrperf_logger_thread(void *arg) {
   return 0;
 }
 
-static void instructed_log_op(struct work_struct *work) {
+static void instructed_poll_op(struct work_struct *work) {
   hrperf_poller_data_t poller_data;
   poller_data.kts = 0; // Initialize kts to 0, will be set in the poller
   smp_poll_pmus(&poller_data);
+}
+
+static void instructed_log_op(struct work_struct *work) {
   log_for_all_cpus();
+}
+
+static void instructed_poll_and_log(struct work_struct *work) {
+  instructed_poll_op(work);
+  instructed_log_op(work);
+}
+
+static __always_inline int enqueue_instructed_profile_op(instructed_profile_func_t func) {
+  if (instructed_profile) {
+    struct work_struct *work = this_cpu_ptr(&instructed_profile_w);
+    INIT_WORK(work, func);
+    if (work == NULL) {
+      pr_err("hrperf: Instructed log work struct is NULL.\n");
+      return -EFAULT;
+    }
+    if (instructed_profile_wq == NULL) {
+      pr_err("hrperf: Instructed profile workqueue is NULL.\n");
+      return -EFAULT;
+    }
+    queue_work_on(HRP_PMC_POLLER_CPU, instructed_profile_wq, work);
+    flush_work(work);
+    printk(KERN_INFO
+            "hrperf: Instructed profiling - single poll and log done\n");
+  } else {
+    pr_warn("hrperf: Instructed profiling is not enabled. INSTRUCTED_POLL_AND_LOG "
+            "command is invalid.\n");
+    return -EINVAL;
+  }
+  return 0;
 }
 
 // IOCTL function to start/stop the logger/pollers
@@ -292,28 +325,27 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
     }
     break;
   }
+  case HRP_PMC_IOC_INSTRUCTED_POLL: {
+    // Perform a single poll operation
+    int ret = enqueue_instructed_profile_op(instructed_poll_op);
+    if (ret != 0) {
+      return ret;
+    }
+    break;
+  }
   case HRP_PMC_IOC_INSTRUCTED_LOG: {
+    // Perform a single log operation
+    int ret = enqueue_instructed_profile_op(instructed_log_op);
+    if (ret != 0) {
+      return ret;
+    }
+    break;
+  }
+  case HRP_PMC_IOC_INSTRUCTED_POLL_AND_LOG: {
     // Perform a single poll and log operation
-    if (instructed_profile) {
-      struct work_struct *work = this_cpu_ptr(&instructed_log_w);
-      INIT_WORK(work, instructed_log_op);
-      if (work == NULL) {
-        pr_err("hrperf: Instructed log work struct is NULL.\n");
-        return -EFAULT;
-      }
-      if (instructed_log_wq == NULL) {
-        pr_err("hrperf: Instructed log workqueue is NULL.\n");
-        return -EFAULT;
-      }
-      // Queue the work to the workqueue
-      queue_work_on(HRP_PMC_POLLER_CPU, instructed_log_wq, work);
-      flush_work(work);
-      printk(KERN_INFO
-             "hrperf: Instructed profiling - single poll and log done\n");
-    } else {
-      pr_warn("hrperf: Instructed profiling is not enabled. INSTRUCTED_LOG "
-              "command is invalid.\n");
-      return -EINVAL;
+    int ret = enqueue_instructed_profile_op(instructed_poll_and_log);
+    if (ret != 0) {
+      return ret;
     }
     break;
   }
@@ -466,8 +498,8 @@ static int __init hrp_pmc_init(void) {
   }
   
   if (instructed_profile) {
-    instructed_log_wq = alloc_workqueue("hrp_inst_log_wq", WQ_HIGHPRI, 0);
-    if (instructed_log_wq == NULL) {
+    instructed_profile_wq = alloc_workqueue("hrp_inst_log_wq", WQ_HIGHPRI, 0);
+    if (instructed_profile_wq == NULL) {
       pr_err("hrperf: Failed to create instructed log workqueue.\n");
       return -ENOMEM;
     }
@@ -485,9 +517,9 @@ static void __exit hrp_pmc_exit(void) {
     kthread_stop(poller_thread);
   }
   
-  if (instructed_log_wq) {
-    flush_workqueue(instructed_log_wq);
-    destroy_workqueue(instructed_log_wq);
+  if (instructed_profile_wq) {
+    flush_workqueue(instructed_profile_wq);
+    destroy_workqueue(instructed_profile_wq);
   }
 
   hrperf_close_log_file(log_file);
