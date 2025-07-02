@@ -18,8 +18,8 @@ Before building hiresperf, check and edit `src/config.h` carefully to make hardw
 
 **Build and install hiresperf**
 ```
-sudo make
-sudo make install
+make
+make install
 ```
 **Setup/cleanup the hiresperf kernel module**
 
@@ -45,6 +45,7 @@ The other way is to manually toggle it by
 ```
 cd workloads
 make
+# or `sudo ./start` if you didn't run `sudo chmod 666 /dev/hrperf_device` beforehand.
 ./start
 ```
 Either way it's just using `ioctl` to interact with the kernel module.
