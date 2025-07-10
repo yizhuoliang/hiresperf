@@ -172,7 +172,8 @@ def get_all_time_ranges(df: pd.DataFrame) -> list[tuple[int, int]]:
         return []
 
     time_ranges = []
-    for i in range(len(timestamps) - 1):
+    # Pair timestamps as (0,1), (2,3), (4,5), ...
+    for i in range(0, len(timestamps) - 1, 2):
         start = timestamps[i]
         end = timestamps[i + 1]
         time_ranges.append((start, end))
