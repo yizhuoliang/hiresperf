@@ -22,6 +22,12 @@ parser.add_argument(
     help="CPU ID to store IMC data (default: 0)",
 )
 parser.add_argument(
+    "--cpu_id",
+    type=int,
+    default=10,
+    help="The CPU ID to calculate the diff (default: 10). Use -1 to aggregate over all cores.",
+)
+parser.add_argument(
     "--bin_path",
     type=str,
     default="/hrperf_log.bin",
@@ -131,6 +137,10 @@ def calc_data_in_range(time_range: tuple[int, int], df: pd.DataFrame) -> TimeRan
         f'{c1_diff_name}': merged[f'{c1_name}_end'] - merged[f'{c1_name}_start'],
         f'{c2_diff_name}': merged[f'{c2_name}_end'] - merged[f'{c2_name}_start']
     })
+
+    if args.cpu_id != -1:
+        diff = diff[diff["cpu_id"] == args.cpu_id]
+    
     # print(f"Duration: {(timestamp_max - timestamp_min)/1999/1e6:.5f} s")
     time_range_d.duration_ms = (timestamp_max - timestamp_min) / int(args.tsc_freq) / 1e3  # in ms
 
@@ -228,6 +238,8 @@ def main():
         
     file_path = args.bin_path
     trs = parse_hrp_instructed_profile(file_path) 
+    for tr in trs:
+        print(f"Time Range: {tr.start_ts} - {tr.end_ts}, Duration: {tr.duration_ms:.2f} ms, {c1_name} Diff: {tr.c1_diff}, {c2_name} Diff: {tr.c2_diff}, IMC Read Diff: {tr.imc_read_diff}, IMC Write Diff: {tr.imc_write_diff}")
     print_avg_time_ranges_data(trs)
 
 if __name__ == "__main__":
