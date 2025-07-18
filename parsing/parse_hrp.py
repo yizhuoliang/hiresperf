@@ -67,7 +67,7 @@ def read_logs_to_numpy(file_path: str, use_imc: bool = False) -> np.ndarray:
         print(f"Error reading file with NumPy: {e}")
         return np.array([])
 
-def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bool, use_imc: bool):
+def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bool, use_imc: bool, use_write_est: bool):
     """Create database tables if they don't exist."""
     if use_raw:
         if use_offcore:
@@ -88,6 +88,27 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     cpu_unhalt UBIGINT,
                     offcore_read UBIGINT,
                     offcore_write UBIGINT
+                    {}
+                )
+            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+        elif use_write_est:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS performance_events (
+                    id BIGINT,
+                    cpu_id INTEGER,
+                    timestamp_ns UBIGINT,
+                    stalls_per_us DOUBLE,
+                    inst_retire_rate DOUBLE,
+                    cpu_usage DOUBLE,
+                    offcore_read_rate DOUBLE,
+                    write_estimate_rate DOUBLE,
+                    memory_bandwidth_bytes_per_us DOUBLE,
+                    time_delta_ns BIGINT,
+                    stall_mem UBIGINT,
+                    inst_retire UBIGINT,
+                    cpu_unhalt UBIGINT,
+                    offcore_read UBIGINT,
+                    write_estimate UBIGINT
                     {}
                 )
             """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
@@ -124,6 +145,22 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     cpu_usage DOUBLE,
                     offcore_read_rate DOUBLE,
                     offcore_write_rate DOUBLE,
+                    memory_bandwidth_bytes_per_us DOUBLE,
+                    time_delta_ns BIGINT
+                    {}
+                )
+            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+        elif use_write_est:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS performance_events (
+                    id BIGINT,
+                    cpu_id INTEGER,
+                    timestamp_ns UBIGINT,
+                    stalls_per_us DOUBLE,
+                    inst_retire_rate DOUBLE,
+                    cpu_usage DOUBLE,
+                    offcore_read_rate DOUBLE,
+                    write_estimate_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
                     time_delta_ns BIGINT
                     {}
@@ -278,6 +315,11 @@ def main():
         "--use_offcore",
         action="store_true",
         help="Indicates if offcore counters are used (must match hiresperf build).",
+    )
+    parser.add_argument(
+        "--use_write_est",
+        action="store_true",
+        help="Indicates if write estimate counters are used (must match hiresperf build).",
     )
     parser.add_argument(
         "--use_imc",
