@@ -194,7 +194,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
 
 def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool, 
                             tsc_per_us: float, use_offcore: bool, use_imc: bool,
-                            db_path: str):
+                            db_path: str, use_write_est: bool):
     print("Reading all log entries into memory...")
     
     numpy_data = read_logs_to_numpy(perf_log_path, use_imc)
@@ -280,7 +280,7 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
 
     print("Writing data to DuckDB...")
     con = duckdb.connect(database=db_path)
-    create_tables(con, use_raw, use_offcore, use_imc)
+    create_tables(con, use_raw, use_offcore, use_imc, use_write_est)
 
     con.execute("INSERT INTO performance_events SELECT * FROM perf_df")
     con.execute("INSERT INTO node_memory_bandwidth SELECT * FROM node_bw_df")
@@ -374,6 +374,7 @@ def main():
         use_offcore=args.use_offcore,
         use_imc=args.use_imc,
         db_path=args.db_path,
+        use_write_est=args.use_write_est,
     )
 
 if __name__ == "__main__":
