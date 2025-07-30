@@ -51,6 +51,13 @@
 // Consider using page-based allocation if physically contiguous allocation fails
 #define HRP_EXLARGE_HEAP_ALLOCATED_RB 0
 
+// set to 1 if you intend to use instructed profile mode concurrently,
+// e.g., invoke poll or log ioctl concurrently.
+// This will enforce synchronization across these actions.
+// If you only use instructed profile mode in a single thread, set to 0 for better performance.
+// Note: this flag only effective when instructed profile mode is enabled.
+#define CONCURRENT_INSTRUCTED_PROFILE 0
+
 // the bitmask for selecting which cores to monitor
 #define HRP_PMC_CPU_SELECTION_MASK_BITS 256
 static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION_MASK_BITS / 64] = {

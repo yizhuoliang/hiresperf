@@ -10,6 +10,7 @@
 #include <linux/kthread.h>
 #include <linux/ktime.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/percpu.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
@@ -26,6 +27,9 @@
 #include "uncore_pmu.h"
 
 static bool instructed_profile = false;
+#if CONCURRENT_INSTRUCTED_PROFILE
+static DEFINE_MUTEX(instructed_profile_lock);
+#endif
 module_param(instructed_profile, bool, S_IRUGO);
 MODULE_PARM_DESC(instructed_profile,
                  "Enable instructed profiling where only one poll upon each "
@@ -153,6 +157,12 @@ static void hrperf_poller_func(void *info) {
 }
 
 static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
+#if CONCURRENT_INSTRUCTED_PROFILE
+  if (instructed_profile) {
+    mutex_lock(&instructed_profile_lock);
+  }
+#endif
+
 #if HRP_STRICT_POLLING_SYNC
   preempt_disable();
 #endif
@@ -203,6 +213,12 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
   hrperf_poller_func((void*) poller_data);
 #endif
 #endif
+
+#if CONCURRENT_INSTRUCTED_PROFILE
+  if (instructed_profile) {
+    mutex_unlock(&instructed_profile_lock);
+  }
+#endif
 }
 
 // Single poller thread function for initiating the smp_call_function_many
@@ -221,10 +237,22 @@ static int hrperf_poller_thread(void *arg) {
 }
 
 static __always_inline void log_for_all_cpus(void) {
+#if CONCURRENT_INSTRUCTED_PROFILE
+  if (instructed_profile) {
+    mutex_lock(&instructed_profile_lock);
+  }
+#endif
+
   int cpu;
   for_each_cpu(cpu, &hrp_selected_cpus) {
     log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), log_file);
   }
+  
+#if CONCURRENT_INSTRUCTED_PROFILE
+  if (instructed_profile) {
+    mutex_unlock(&instructed_profile_lock);
+  }
+#endif
 }
 
 // Logger thread function
