@@ -53,6 +53,7 @@ static atomic_t start_flag;
 static atomic_t done_cpus;
 #endif
 static u32 N_CPUS = 0;
+static u32 N_POLLING_CPUS = 0;  // Actual number of CPUs that will poll
 
 static DEFINE_PER_CPU(HrperfRingBuffer, per_cpu_buffer);
 static struct task_struct *poller_thread;
@@ -122,9 +123,18 @@ static void hrperf_poller_func(void *info) {
 #if HRP_STRICT_POLLING_SYNC
   preempt_disable();
   atomic_inc(&ready_cpus);
-  // Wait for all CPUs to be ready
-  while (!atomic_read(&start_flag))
+  
+  // Wait for all CPUs to be ready with timeout
+  unsigned long timeout = jiffies + msecs_to_jiffies(150);
+  while (!atomic_read(&start_flag)) {
+    if (time_after(jiffies, timeout)) {
+      pr_err("hrperf: Timeout waiting for start flag on CPU %d\n", smp_processor_id());
+      atomic_inc(&done_cpus);  // Mark as done to prevent main thread hang
+      preempt_enable();
+      return;
+    }
     cpu_relax();
+  }
 #endif
 
   HrperfLogEntry entry;
@@ -186,16 +196,36 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
   atomic_set(&start_flag, 0);
   atomic_set(&done_cpus, 0);
 
-  smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func,
+  // Create a CPU mask excluding the poller CPU if it shouldn't poll
+  cpumask_var_t polling_cpus;
+  if (!alloc_cpumask_var(&polling_cpus, GFP_KERNEL)) {
+    pr_err("hrperf: Failed to allocate CPU mask for polling\n");
+    return;
+  }
+  
+  cpumask_copy(polling_cpus, &hrp_selected_cpus);
+#if (HRP_POLL_POLLER_CORE != 1)
+  cpumask_clear_cpu(HRP_PMC_POLLER_CPU, polling_cpus);
+#endif
+
+  smp_call_function_many(polling_cpus, hrperf_poller_func,
                          (void *)poller_data, 0);
 #if HRP_POLL_POLLER_CORE
   // Current CPU also participates
   atomic_inc(&ready_cpus);
 #endif
     
-  // Wait for all CPUs to be ready
-  while (atomic_read(&ready_cpus) < N_CPUS)
-      cpu_relax();
+  // Wait for all polling CPUs to be ready with timeout
+  unsigned long timeout = jiffies + msecs_to_jiffies(200);
+  while (atomic_read(&ready_cpus) < N_POLLING_CPUS) {
+    if (time_after(jiffies, timeout)) {
+      pr_err("hrperf: Timeout waiting for CPUs to be ready. Ready: %d, Expected: %u\n",
+             atomic_read(&ready_cpus), N_POLLING_CPUS);
+      free_cpumask_var(polling_cpus);
+      return;
+    }
+    cpu_relax();
+  }
   
   atomic_set(&start_flag, 1);
   
@@ -204,8 +234,19 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
 #endif
 
   preempt_enable();
-  while (atomic_read(&done_cpus) < N_CPUS)
+  
+  // Wait for all polling CPUs to complete with timeout
+  timeout = jiffies + msecs_to_jiffies(200);
+  while (atomic_read(&done_cpus) < N_POLLING_CPUS) {
+    if (time_after(jiffies, timeout)) {
+      pr_err("hrperf: Timeout waiting for CPUs to complete. Done: %d, Expected: %u\n",
+             atomic_read(&done_cpus), N_POLLING_CPUS);
+      break;
+    }
     cpu_relax();
+  }
+  
+  free_cpumask_var(polling_cpus);
 #else
   smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func,
                          (void *)poller_data, 1);
@@ -444,15 +485,28 @@ static int __init hrp_pmc_init(void) {
               HRP_PMC_CPU_SELECTION_MASK_BITS);
   
   N_CPUS = cpumask_weight(&hrp_selected_cpus);
+  
+  // Calculate the actual number of CPUs that will participate in polling
+  N_POLLING_CPUS = N_CPUS;
 #if (HRP_POLL_POLLER_CORE != 1)
-  // not poll on the poller core, so reduce one CPU
-  N_CPUS = (N_CPUS > 0) ? (N_CPUS - 1) : 0;
+  // If poller core doesn't poll, we need to exclude it from the selected CPUs
+  // for synchronization purposes, but keep it in the mask for buffer allocation
+  if (cpumask_test_cpu(HRP_PMC_POLLER_CPU, &hrp_selected_cpus)) {
+    N_POLLING_CPUS = N_CPUS - 1;
+  }
 #endif
+  
   if (N_CPUS <= 0 || N_CPUS > NR_CPUS) {
     pr_err("hrperf: No/Too many CPUs selected for monitoring. Please check the CPU selection mask.\n");
     return -EINVAL;
   }
-  pr_info("hrperf: Number of selected CPUs: %u\n", N_CPUS);
+  
+  if (N_POLLING_CPUS <= 0) {
+    pr_err("hrperf: No CPUs will participate in polling. Check CPU selection and poller configuration.\n");
+    return -EINVAL;
+  }
+  
+  pr_info("hrperf: Number of selected CPUs: %u, polling CPUs: %u\n", N_CPUS, N_POLLING_CPUS);
 
   // Initialize per-CPU ring buffers
   int cpu;
