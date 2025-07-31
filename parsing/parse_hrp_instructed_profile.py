@@ -156,20 +156,21 @@ def calc_data_in_range(time_range: tuple[int, int], df: pd.DataFrame) -> TimeRan
     # print(f"Total diff: {total_}")
     # print(f"Data transferred ((c1+c2) * 64): {total_ * 64 / 1e6:.2f} MB") 
     
-    imc_col_names = ['imc_read', 'imc_write']
+    if args.use_imc:
+        imc_col_names = ['imc_read', 'imc_write']
 
-    start_imc = df.loc[(df['timestamp'] == timestamp_min) & (df['cpu_id'] == args.cpu_store_imc), imc_col_names]
-    end_imc = df.loc[(df['timestamp'] == timestamp_max) & (df['cpu_id'] == args.cpu_store_imc), imc_col_names]
+        start_imc = df.loc[(df['timestamp'] == timestamp_min) & (df['cpu_id'] == args.cpu_store_imc), imc_col_names]
+        end_imc = df.loc[(df['timestamp'] == timestamp_max) & (df['cpu_id'] == args.cpu_store_imc), imc_col_names]
 
-    if not start_imc.empty and not end_imc.empty:
-        imc_read_diff = int(end_imc['imc_read'].values[0]) - int(start_imc['imc_read'].values[0])
-        imc_write_diff = int(end_imc['imc_write'].values[0]) - int(start_imc['imc_write'].values[0])
-        # print(f"IMC read diff: {imc_read_diff}, IMC write diff: {imc_write_diff}")
-        # print(f"IMC total transferred ((read+write) * 64): {(imc_read_diff + imc_write_diff) * 64 / 1e6:.2f} MB")
-        time_range_d.imc_read_diff = imc_read_diff
-        time_range_d.imc_write_diff = imc_write_diff
-    else:
-        print("IMC data not available for the specified cpu_id and timestamps.")
+        if not start_imc.empty and not end_imc.empty:
+            imc_read_diff = int(end_imc['imc_read'].values[0]) - int(start_imc['imc_read'].values[0])
+            imc_write_diff = int(end_imc['imc_write'].values[0]) - int(start_imc['imc_write'].values[0])
+            # print(f"IMC read diff: {imc_read_diff}, IMC write diff: {imc_write_diff}")
+            # print(f"IMC total transferred ((read+write) * 64): {(imc_read_diff + imc_write_diff) * 64 / 1e6:.2f} MB")
+            time_range_d.imc_read_diff = imc_read_diff
+            time_range_d.imc_write_diff = imc_write_diff
+        else:
+            print("IMC data not available for the specified cpu_id and timestamps.")
 
     return time_range_d
 
