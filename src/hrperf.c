@@ -44,7 +44,7 @@ typedef struct hrperf_poller_data {
 // CPU.
 static struct workqueue_struct *instructed_profile_wq = NULL;
 static DEFINE_PER_CPU(struct work_struct, instructed_profile_w);
-typedef void(*instructed_profile_func_t)(struct work_struct *work);
+typedef void (*instructed_profile_func_t)(struct work_struct *work);
 
 #if HRP_STRICT_POLLING_SYNC
 // for forcing synchronization across all PMUs polling.
@@ -53,7 +53,7 @@ static atomic_t start_flag;
 static atomic_t done_cpus;
 #endif
 static u32 N_CPUS = 0;
-static u32 N_POLLING_CPUS = 0;  // Actual number of CPUs that will poll
+static u32 N_POLLING_CPUS = 0; // Actual number of CPUs that will poll
 
 static DEFINE_PER_CPU(HrperfRingBuffer, per_cpu_buffer);
 static struct task_struct *poller_thread;
@@ -123,13 +123,14 @@ static void hrperf_poller_func(void *info) {
 #if HRP_STRICT_POLLING_SYNC
   preempt_disable();
   atomic_inc(&ready_cpus);
-  
+
   // Wait for all CPUs to be ready with timeout
   unsigned long timeout = jiffies + msecs_to_jiffies(150);
   while (!atomic_read(&start_flag)) {
     if (time_after(jiffies, timeout)) {
-      pr_err("hrperf: Timeout waiting for start flag on CPU %d\n", smp_processor_id());
-      atomic_inc(&done_cpus);  // Mark as done to prevent main thread hang
+      pr_err("hrperf: Timeout waiting for start flag on CPU %d\n",
+             smp_processor_id());
+      atomic_inc(&done_cpus); // Mark as done to prevent main thread hang
       preempt_enable();
       return;
     }
@@ -202,56 +203,58 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
     pr_err("hrperf: Failed to allocate CPU mask for polling\n");
     return;
   }
-  
+
   cpumask_copy(polling_cpus, &hrp_selected_cpus);
 #if (HRP_POLL_POLLER_CORE != 1)
   cpumask_clear_cpu(HRP_PMC_POLLER_CPU, polling_cpus);
 #endif
 
-  smp_call_function_many(polling_cpus, hrperf_poller_func,
-                         (void *)poller_data, 0);
+  smp_call_function_many(polling_cpus, hrperf_poller_func, (void *)poller_data,
+                         0);
 #if HRP_POLL_POLLER_CORE
   // Current CPU also participates
   atomic_inc(&ready_cpus);
 #endif
-    
+
   // Wait for all polling CPUs to be ready with timeout
   unsigned long timeout = jiffies + msecs_to_jiffies(200);
   while (atomic_read(&ready_cpus) < N_POLLING_CPUS) {
     if (time_after(jiffies, timeout)) {
-      pr_err("hrperf: Timeout waiting for CPUs to be ready. Ready: %d, Expected: %u\n",
+      pr_err("hrperf: Timeout waiting for CPUs to be ready. Ready: %d, "
+             "Expected: %u\n",
              atomic_read(&ready_cpus), N_POLLING_CPUS);
       free_cpumask_var(polling_cpus);
       return;
     }
     cpu_relax();
   }
-  
+
   atomic_set(&start_flag, 1);
-  
+
 #if HRP_POLL_POLLER_CORE
-  hrperf_poller_func((void*) poller_data);
+  hrperf_poller_func((void *)poller_data);
 #endif
 
   preempt_enable();
-  
+
   // Wait for all polling CPUs to complete with timeout
   timeout = jiffies + msecs_to_jiffies(200);
   while (atomic_read(&done_cpus) < N_POLLING_CPUS) {
     if (time_after(jiffies, timeout)) {
-      pr_err("hrperf: Timeout waiting for CPUs to complete. Done: %d, Expected: %u\n",
+      pr_err("hrperf: Timeout waiting for CPUs to complete. Done: %d, "
+             "Expected: %u\n",
              atomic_read(&done_cpus), N_POLLING_CPUS);
       break;
     }
     cpu_relax();
   }
-  
+
   free_cpumask_var(polling_cpus);
 #else
   smp_call_function_many(&hrp_selected_cpus, hrperf_poller_func,
                          (void *)poller_data, 1);
 #if HRP_POLL_POLLER_CORE
-  hrperf_poller_func((void*) poller_data);
+  hrperf_poller_func((void *)poller_data);
 #endif
 #endif
 
@@ -288,7 +291,7 @@ static __always_inline void log_for_all_cpus(void) {
   for_each_cpu(cpu, &hrp_selected_cpus) {
     log_and_clear(per_cpu_ptr(&per_cpu_buffer, cpu), log_file);
   }
-  
+
 #if CONCURRENT_INSTRUCTED_PROFILE
   if (instructed_profile) {
     mutex_unlock(&instructed_profile_lock);
@@ -320,16 +323,15 @@ static void instructed_poll_op(struct work_struct *work) {
   smp_poll_pmus(&poller_data);
 }
 
-static void instructed_log_op(struct work_struct *work) {
-  log_for_all_cpus();
-}
+static void instructed_log_op(struct work_struct *work) { log_for_all_cpus(); }
 
 static void instructed_poll_and_log(struct work_struct *work) {
   instructed_poll_op(work);
   instructed_log_op(work);
 }
 
-static __always_inline int enqueue_instructed_profile_op(instructed_profile_func_t func) {
+static __always_inline int
+enqueue_instructed_profile_op(instructed_profile_func_t func) {
   if (instructed_profile) {
     struct work_struct *work = this_cpu_ptr(&instructed_profile_w);
     INIT_WORK(work, func);
@@ -344,10 +346,11 @@ static __always_inline int enqueue_instructed_profile_op(instructed_profile_func
     queue_work_on(HRP_PMC_POLLER_CPU, instructed_profile_wq, work);
     flush_work(work);
     printk(KERN_INFO
-            "hrperf: Instructed profiling - single poll and log done\n");
+           "hrperf: Instructed profiling - single poll and log done\n");
   } else {
-    pr_warn("hrperf: Instructed profiling is not enabled. INSTRUCTED_POLL_AND_LOG "
-            "command is invalid.\n");
+    pr_warn(
+        "hrperf: Instructed profiling is not enabled. INSTRUCTED_POLL_AND_LOG "
+        "command is invalid.\n");
     return -EINVAL;
   }
   return 0;
@@ -483,9 +486,9 @@ static int __init hrp_pmc_init(void) {
   // copy the 256-bit CPU selection mask into hrp_selected_cpus
   bitmap_copy(cpumask_bits(&hrp_selected_cpus), hrp_pmc_cpu_selection_mask_bits,
               HRP_PMC_CPU_SELECTION_MASK_BITS);
-  
+
   N_CPUS = cpumask_weight(&hrp_selected_cpus);
-  
+
   // Calculate the actual number of CPUs that will participate in polling
   N_POLLING_CPUS = N_CPUS;
 #if (HRP_POLL_POLLER_CORE != 1)
@@ -495,18 +498,21 @@ static int __init hrp_pmc_init(void) {
     N_POLLING_CPUS = N_CPUS - 1;
   }
 #endif
-  
+
   if (N_CPUS <= 0 || N_CPUS > NR_CPUS) {
-    pr_err("hrperf: No/Too many CPUs selected for monitoring. Please check the CPU selection mask.\n");
+    pr_err("hrperf: No/Too many CPUs selected for monitoring. Please check the "
+           "CPU selection mask.\n");
     return -EINVAL;
   }
-  
+
   if (N_POLLING_CPUS <= 0) {
-    pr_err("hrperf: No CPUs will participate in polling. Check CPU selection and poller configuration.\n");
+    pr_err("hrperf: No CPUs will participate in polling. Check CPU selection "
+           "and poller configuration.\n");
     return -EINVAL;
   }
-  
-  pr_info("hrperf: Number of selected CPUs: %u, polling CPUs: %u\n", N_CPUS, N_POLLING_CPUS);
+
+  pr_info("hrperf: Number of selected CPUs: %u, polling CPUs: %u\n", N_CPUS,
+          N_POLLING_CPUS);
 
   // Initialize per-CPU ring buffers
   int cpu;
@@ -578,7 +584,7 @@ static int __init hrp_pmc_init(void) {
     kthread_bind(logger_thread, HRP_PMC_LOGGER_CPU);
     wake_up_process(logger_thread);
   }
-  
+
   if (instructed_profile) {
     instructed_profile_wq = alloc_workqueue("hrp_inst_log_wq", WQ_HIGHPRI, 0);
     if (instructed_profile_wq == NULL) {
@@ -598,7 +604,7 @@ static void __exit hrp_pmc_exit(void) {
   if (poller_thread) {
     kthread_stop(poller_thread);
   }
-  
+
   if (instructed_profile_wq) {
     flush_workqueue(instructed_profile_wq);
     destroy_workqueue(instructed_profile_wq);
