@@ -223,9 +223,9 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
 
     # Calculate time delta
     if use_tsc_ts:
-        time_delta_ns = int((pl.col("timestamp") - pl.col("prev_timestamp")) * 1e3 // tsc_per_us)
+        time_delta_ns = (pl.col("timestamp") - pl.col("prev_timestamp")) * 1e3 // tsc_per_us
     else:
-        time_delta_ns = int(pl.col("timestamp") - pl.col("prev_timestamp"))
+        time_delta_ns = pl.col("timestamp") - pl.col("prev_timestamp")
 
     time_delta_us = time_delta_ns / 1e3
 
