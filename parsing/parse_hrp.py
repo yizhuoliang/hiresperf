@@ -82,7 +82,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     offcore_read_rate DOUBLE,
                     offcore_write_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT,
+                    time_delta_ns UBIGINT,
                     stall_mem UBIGINT,
                     inst_retire UBIGINT,
                     cpu_unhalt UBIGINT,
@@ -103,7 +103,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     offcore_read_rate DOUBLE,
                     write_estimate_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT,
+                    time_delta_ns UBIGINT,
                     stall_mem UBIGINT,
                     inst_retire UBIGINT,
                     cpu_unhalt UBIGINT,
@@ -124,7 +124,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     llc_misses_rate DOUBLE,
                     sw_prefetch_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT,
+                    time_delta_ns UBIGINT,
                     stall_mem UBIGINT,
                     inst_retire UBIGINT,
                     cpu_unhalt UBIGINT,
@@ -146,7 +146,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     offcore_read_rate DOUBLE,
                     offcore_write_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT
+                    time_delta_ns UBIGINT
                     {}
                 )
             """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
@@ -162,7 +162,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     offcore_read_rate DOUBLE,
                     write_estimate_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT
+                    time_delta_ns UBIGINT
                     {}
                 )
             """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
@@ -178,7 +178,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     llc_misses_rate DOUBLE,
                     sw_prefetch_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT
+                    time_delta_ns UBIGINT
                     {}
                 )
             """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
@@ -223,10 +223,10 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
 
     # Calculate time delta
     if use_tsc_ts:
-        time_delta_ns = (pl.col("timestamp") - pl.col("prev_timestamp")) / tsc_per_us * 1e3
+        time_delta_ns = int((pl.col("timestamp") - pl.col("prev_timestamp")) * 1e3 // tsc_per_us)
     else:
-        time_delta_ns = pl.col("timestamp") - pl.col("prev_timestamp")
-    
+        time_delta_ns = int(pl.col("timestamp") - pl.col("prev_timestamp"))
+
     time_delta_us = time_delta_ns / 1e3
 
     # Filter out invalid time deltas
@@ -234,6 +234,10 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
         time_delta_ns=time_delta_ns,
         time_delta_us=time_delta_us
     ).filter(pl.col("time_delta_us") > 0) 
+
+    df = df.with_columns(
+        time_delta_ns=pl.col("time_delta_ns").cast(pl.UInt64)
+    )
 
     df = df.with_columns(
         stalls_per_us=(pl.col("stall_mem") - pl.col("prev_stall_mem")) / pl.col("time_delta_us"),
@@ -259,7 +263,6 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
     perf_df = df.rename({"timestamp": "timestamp_ns"}).select(final_cols)
     # Add a unique ID
     perf_df = perf_df.with_row_index("id", offset=1)
-
 
     # Calculate Node Memory Bandwidth
     print("Calculating node-wide memory bandwidth...")
