@@ -71,47 +71,48 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
     """Create database tables if they don't exist."""
     if use_raw:
         if use_offcore:
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS performance_events (
-                    id BIGINT,
-                    cpu_id INTEGER,
-                    timestamp_ns UBIGINT,
-                    stalls_per_us DOUBLE,
-                    inst_retire_rate DOUBLE,
-                    cpu_usage DOUBLE,
-                    offcore_read_rate DOUBLE,
-                    offcore_write_rate DOUBLE,
-                    memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT,
-                    stall_mem UBIGINT,
-                    inst_retire UBIGINT,
-                    cpu_unhalt UBIGINT,
-                    offcore_read UBIGINT,
-                    offcore_write UBIGINT
-                    {}
-                )
-            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
-        elif use_write_est:
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS performance_events (
-                    id BIGINT,
-                    cpu_id INTEGER,
-                    timestamp_ns UBIGINT,
-                    stalls_per_us DOUBLE,
-                    inst_retire_rate DOUBLE,
-                    cpu_usage DOUBLE,
-                    offcore_read_rate DOUBLE,
-                    write_estimate_rate DOUBLE,
-                    memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT,
-                    stall_mem UBIGINT,
-                    inst_retire UBIGINT,
-                    cpu_unhalt UBIGINT,
-                    offcore_read UBIGINT,
-                    write_estimate UBIGINT
-                    {}
-                )
-            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+            if use_write_est:
+                con.execute("""
+                    CREATE TABLE IF NOT EXISTS performance_events (
+                        id BIGINT,
+                        cpu_id INTEGER,
+                        timestamp_ns UBIGINT,
+                        stalls_per_us DOUBLE,
+                        inst_retire_rate DOUBLE,
+                        cpu_usage DOUBLE,
+                        offcore_read_rate DOUBLE,
+                        write_estimate_rate DOUBLE,
+                        memory_bandwidth_bytes_per_us DOUBLE,
+                        time_delta_ns UBIGINT,
+                        stall_mem UBIGINT,
+                        inst_retire UBIGINT,
+                        cpu_unhalt UBIGINT,
+                        offcore_read UBIGINT,
+                        write_estimate UBIGINT
+                        {}
+                    )
+                """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+            else:
+                con.execute("""
+                    CREATE TABLE IF NOT EXISTS performance_events (
+                        id BIGINT,
+                        cpu_id INTEGER,
+                        timestamp_ns UBIGINT,
+                        stalls_per_us DOUBLE,
+                        inst_retire_rate DOUBLE,
+                        cpu_usage DOUBLE,
+                        offcore_read_rate DOUBLE,
+                        offcore_write_rate DOUBLE,
+                        memory_bandwidth_bytes_per_us DOUBLE,
+                        time_delta_ns UBIGINT,
+                        stall_mem UBIGINT,
+                        inst_retire UBIGINT,
+                        cpu_unhalt UBIGINT,
+                        offcore_read UBIGINT,
+                        offcore_write UBIGINT
+                        {}
+                    )
+                """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
         else:
             con.execute("""
                 CREATE TABLE IF NOT EXISTS performance_events (
@@ -124,7 +125,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     llc_misses_rate DOUBLE,
                     sw_prefetch_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT,
+                    time_delta_ns UBIGINT,
                     stall_mem UBIGINT,
                     inst_retire UBIGINT,
                     cpu_unhalt UBIGINT,
@@ -135,37 +136,38 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
             """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
     else:
         if use_offcore:
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS performance_events (
-                    id BIGINT,
-                    cpu_id INTEGER,
-                    timestamp_ns UBIGINT,
-                    stalls_per_us DOUBLE,
-                    inst_retire_rate DOUBLE,
-                    cpu_usage DOUBLE,
-                    offcore_read_rate DOUBLE,
-                    offcore_write_rate DOUBLE,
-                    memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT
-                    {}
-                )
-            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
-        elif use_write_est:
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS performance_events (
-                    id BIGINT,
-                    cpu_id INTEGER,
-                    timestamp_ns UBIGINT,
-                    stalls_per_us DOUBLE,
-                    inst_retire_rate DOUBLE,
-                    cpu_usage DOUBLE,
-                    offcore_read_rate DOUBLE,
-                    write_estimate_rate DOUBLE,
-                    memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT
-                    {}
-                )
-            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+            if use_write_est:
+                con.execute("""
+                    CREATE TABLE IF NOT EXISTS performance_events (
+                        id BIGINT,
+                        cpu_id INTEGER,
+                        timestamp_ns UBIGINT,
+                        stalls_per_us DOUBLE,
+                        inst_retire_rate DOUBLE,
+                        cpu_usage DOUBLE,
+                        offcore_read_rate DOUBLE,
+                        write_estimate_rate DOUBLE,
+                        memory_bandwidth_bytes_per_us DOUBLE,
+                        time_delta_ns UBIGINT
+                        {}
+                    )
+                """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+            else:
+                con.execute("""
+                    CREATE TABLE IF NOT EXISTS performance_events (
+                        id BIGINT,
+                        cpu_id INTEGER,
+                        timestamp_ns UBIGINT,
+                        stalls_per_us DOUBLE,
+                        inst_retire_rate DOUBLE,
+                        cpu_usage DOUBLE,
+                        offcore_read_rate DOUBLE,
+                        offcore_write_rate DOUBLE,
+                        memory_bandwidth_bytes_per_us DOUBLE,
+                        time_delta_ns UBIGINT
+                        {}
+                    )
+                """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
         else:
             con.execute("""
                 CREATE TABLE IF NOT EXISTS performance_events (
@@ -178,7 +180,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     llc_misses_rate DOUBLE,
                     sw_prefetch_rate DOUBLE,
                     memory_bandwidth_bytes_per_us DOUBLE,
-                    time_delta_ns BIGINT
+                    time_delta_ns UBIGINT
                     {}
                 )
             """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
@@ -194,7 +196,7 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
 
 def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool, 
                             tsc_per_us: float, use_offcore: bool, use_imc: bool,
-                            db_path: str):
+                            db_path: str, use_write_est: bool):
     print("Reading all log entries into memory...")
     
     numpy_data = read_logs_to_numpy(perf_log_path, use_imc)
@@ -223,10 +225,10 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
 
     # Calculate time delta
     if use_tsc_ts:
-        time_delta_ns = (pl.col("timestamp") - pl.col("prev_timestamp")) / tsc_per_us * 1e3
+        time_delta_ns = (pl.col("timestamp") - pl.col("prev_timestamp")) * 1e3 // tsc_per_us
     else:
         time_delta_ns = pl.col("timestamp") - pl.col("prev_timestamp")
-    
+
     time_delta_us = time_delta_ns / 1e3
 
     # Filter out invalid time deltas
@@ -234,6 +236,10 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
         time_delta_ns=time_delta_ns,
         time_delta_us=time_delta_us
     ).filter(pl.col("time_delta_us") > 0) 
+
+    df = df.with_columns(
+        time_delta_ns=pl.col("time_delta_ns").cast(pl.UInt64)
+    )
 
     df = df.with_columns(
         stalls_per_us=(pl.col("stall_mem") - pl.col("prev_stall_mem")) / pl.col("time_delta_us"),
@@ -260,7 +266,6 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
     # Add a unique ID
     perf_df = perf_df.with_row_index("id", offset=1)
 
-
     # Calculate Node Memory Bandwidth
     print("Calculating node-wide memory bandwidth...")
     node_bw_df = df.group_by("timestamp", maintain_order=True).agg(
@@ -280,7 +285,7 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
 
     print("Writing data to DuckDB...")
     con = duckdb.connect(database=db_path)
-    create_tables(con, use_raw, use_offcore, use_imc)
+    create_tables(con, use_raw, use_offcore, use_imc, use_write_est)
 
     con.execute("INSERT INTO performance_events SELECT * FROM perf_df")
     con.execute("INSERT INTO node_memory_bandwidth SELECT * FROM node_bw_df")
@@ -374,6 +379,7 @@ def main():
         use_offcore=args.use_offcore,
         use_imc=args.use_imc,
         db_path=args.db_path,
+        use_write_est=args.use_write_est,
     )
 
 if __name__ == "__main__":
