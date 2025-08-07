@@ -38,27 +38,27 @@ int mbm_rmid_clear_assoc(void) {
  * Allocate RMID for each core
  */
 int mbm_rmid_allocate_per_core(void) {
-  u32 cpu, core_id = 0;
+  u32 cpu, num_cores = 0;
   struct rmid_info *rmid_info;
   struct rmid_manager *g_rmid_mgr = &g_mbm_mgr.rmid_mgr;
 
   spin_lock(&g_rmid_mgr->lock);
 
   /* Clear all existing assignments first */
-  for (cpu = 0; cpu < g_rmid_mgr->num_cores; cpu++) {
+  for (cpu = 0; cpu < MAX_CORES; cpu++) {
     g_rmid_mgr->rmid_table[cpu].in_use = false;
     g_rmid_mgr->rmid_table[cpu].rmid = 0;
   }
 
   /* Assign unique RMID to each online core */
   for_each_online_cpu(cpu) {
-    if (core_id > g_mbm_mgr.max_rmid) {
-      pr_warn("Not enough RMIDs for all cores, stopping at core %u\n", core_id);
+    if (num_cores > g_mbm_mgr.max_rmid) {
+      pr_warn("Not enough RMIDs for all cores, stopping at core id %u\n", cpu);
       break;
     }
 
-    rmid_info = &g_rmid_mgr->rmid_table[core_id];
-    rmid_info->rmid = core_id + 1; /* RMID 0 is reserved */
+    rmid_info = &g_rmid_mgr->rmid_table[num_cores];
+    rmid_info->rmid = cpu + 1; /* RMID 0 is reserved */
     rmid_info->core_id = cpu;
     rmid_info->in_use = true;
     rmid_info->last_total_bytes = 0;
@@ -66,13 +66,13 @@ int mbm_rmid_allocate_per_core(void) {
 
     smp_call_function_single(cpu, mbm_set_rmid_smp, &rmid_info->rmid, 1);
 
-    core_id++;
+    num_cores++;
   }
 
-  g_rmid_mgr->num_cores = core_id;
+  g_rmid_mgr->num_cores = num_cores;
   spin_unlock(&g_rmid_mgr->lock);
 
-  pr_info("Allocated RMIDs for %u cores\n", core_id);
+  pr_info("Allocated RMIDs for %u cores\n", num_cores);
   return 0;
 }
 
@@ -105,7 +105,7 @@ void mbm_rmid_deallocate_all(void) {
  */
 u32 mbm_rmid_get_for_core(u32 core_id) {
   u32 i;
-  u32 rmid = 0;
+  u32 rmid = RMID0;
 
   struct rmid_manager *g_rmid_mgr = &g_mbm_mgr.rmid_mgr;
 
