@@ -24,6 +24,7 @@
 #include "intel_pmc.h"
 #include "log.h"
 #include "tsc.h"
+#include "mbm/rmid.h"
 #include "uncore_pmu.h"
 
 static bool instructed_profile = false;
@@ -430,6 +431,11 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
 static int __init hrp_pmc_init(void) {
   printk(KERN_INFO "hrperf: Initializing LKM\n");
 
+  if (mbm_init() != 0) {
+    pr_err("hrperf: Failed to initialize Intel MBM.\n");
+    return -EIO;
+  }
+
 #if HRP_USE_TSC
   u64 tsc_cycle = hrp_calibrate_tsc();
   if (tsc_cycle == 0) {
@@ -592,6 +598,7 @@ static int __init hrp_pmc_init(void) {
       return -ENOMEM;
     }
   }
+  
 
   return 0;
 }
