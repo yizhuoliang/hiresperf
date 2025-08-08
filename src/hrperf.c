@@ -24,7 +24,7 @@
 #include "intel_pmc.h"
 #include "log.h"
 #include "tsc.h"
-#include "mbm/rmid.h"
+#include "mbm/mbm.h"
 #include "uncore_pmu.h"
 
 static bool instructed_profile = false;

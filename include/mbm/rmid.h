@@ -6,11 +6,7 @@
 #ifndef _MBM_RMID_H_
 #define _MBM_RMID_H_
 
-#include <linux/spinlock.h>
-#include <linux/types.h>
-
-/* MSR definitions for MBM - use kernel definitions if available */
-#include <asm/msr-index.h>
+#include "mbm/types.h"
 
 /* MSR field definitions */
 #define PQR_ASSOC_RMID_MASK 0x3FF
@@ -33,46 +29,17 @@
 
 #define RMID0 0
 
-/* RMID allocation structure */
-struct rmid_info {
-  u32 rmid;
-  u32 core_id;
-  bool in_use;
-  u64 last_total_bytes;
-  u64 last_local_bytes;
-};
-
-/* Global RMID management structure */
-struct rmid_manager {
-  u32 num_cores;
-  struct rmid_info *rmid_table;
-  spinlock_t lock;
-};
-
-struct mbm_manager {
-  struct rmid_manager rmid_mgr;
-  struct mbm_cap {
-    bool l3_cmt;
-    bool l3_mbm_total;
-    bool l3_mbm_local;
-    bool non_cpu_l3_cmt;
-    bool non_cpu_l3_mbm;
-    bool overflow_bit;
-    u32 counter_width;
-  } cap;
-  u32 scaling_factor;
-  u32 max_rmid;
-};
-
-/* Function declarations */
-int mbm_init(void);
-void mbm_init_cap(void);
-int mbm_deinit(void);
+extern struct mbm_manager g_mbm_mgr;
 
 int mbm_rmid_init(void);
 void mbm_rmid_deinit(void);
 
-__always_inline void mbm_set_rmid(u32 rmid) {
+int mbm_rmid_clear_assoc(void);
+int mbm_rmid_allocate_per_core(void);
+void mbm_rmid_deallocate_all(void);
+u32 mbm_rmid_get_for_core(u32 core_id);
+
+static __always_inline void mbm_set_rmid(u32 rmid) {
   u64 val;
 
   rdmsrl(MSR_IA32_PQR_ASSOC, val);
@@ -83,16 +50,11 @@ __always_inline void mbm_set_rmid(u32 rmid) {
   wrmsrl(MSR_IA32_PQR_ASSOC, val);
 }
 
-__always_inline void mbm_set_rmid_smp(void *info) {
+static __always_inline void mbm_set_rmid_smp(void *info) {
   u32 rmid = *(u32 *)info;
   mbm_set_rmid(rmid);
 }
 
-__always_inline void mbm_reset_rmid(void *info) { mbm_set_rmid(RMID0); }
-
-int mbm_rmid_clear_assoc(void);
-int mbm_rmid_allocate_per_core(void);
-void mbm_rmid_deallocate_all(void);
-u32 mbm_rmid_get_for_core(u32 core_id);
+static __always_inline void mbm_reset_rmid(void *info) { mbm_set_rmid(RMID0); }
 
 #endif /* _MBM_RMID_H_ */
