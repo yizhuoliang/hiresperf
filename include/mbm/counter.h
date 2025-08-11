@@ -46,7 +46,8 @@ static __always_inline mbm_counter_error_t mbm_read_event(u32 rmid, u32 event, u
         return MBM_COUNTER_READ_UNAVAIL;
     }
 
-    return val & QM_CTR_DATA_MASK;
+    *data = val & QM_CTR_DATA_MASK;
+    return MBM_COUNTER_READ_SUCCESS;
 }
 
 /* Read all MBM counters for a given RMID and store in mbm_counter_data_t */
