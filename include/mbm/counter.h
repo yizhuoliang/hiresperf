@@ -91,6 +91,7 @@ static __always_inline void mbm_poll_all_cores(void) {
         struct rmid_info *info = &g_rmid_mgr->rmid_table[idx];
         if (info->in_use) {
             mbm_counter_data_t data;
+            data.status = MBM_COUNTER_READ_SUCCESS;
             data.rmid = info->rmid;
             mbm_read_counters(&data);
             if (data.status == MBM_COUNTER_READ_SUCCESS) {
@@ -138,6 +139,10 @@ static __always_inline struct rmid_info* mbm_get_rmid_info_for_core(u32 core_id)
         return info;
     }
     return NULL;
+}
+
+static __always_inline u64 mbm_to_mb(u64 raw_value) {
+    return raw_value * g_mbm_mgr.scaling_factor / 1000000;
 }
 
 #endif /* _MBM_COUNTER_H_ */

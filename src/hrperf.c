@@ -172,6 +172,16 @@ static void hrperf_poller_func(void *info) {
   entry.tick.local_bw = rmid_info->new_local_bw;
   entry.tick.occupancy = rmid_info->new_occupancy;
 
+  if (entry.cpu_id == 10 && rmid_info->last_local_bw > 0 &&
+      rmid_info->last_total_bw > 0 && rmid_info->last_occupancy > 0) {
+    u64 local_mb = mbm_to_mb(entry.tick.local_bw - rmid_info->last_local_bw);
+    u64 total_mb = mbm_to_mb(entry.tick.total_bw - rmid_info->last_total_bw);
+    u64 occup_mb = mbm_to_mb(entry.tick.occupancy);
+
+    pr_info("CPU %d RMID %u: Total BW: %llu, Local BW: %llu, Occupancy: %llu\n",
+            entry.cpu_id, rmid_info->rmid, total_mb, local_mb, occup_mb);
+  }
+
   enqueue(this_cpu_ptr(&per_cpu_buffer), entry);
 }
 
