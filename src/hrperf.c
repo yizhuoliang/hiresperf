@@ -23,8 +23,10 @@
 #include "intel_msr.h"
 #include "intel_pmc.h"
 #include "log.h"
-#include "tsc.h"
+#include "mbm/counter.h"
 #include "mbm/mbm.h"
+#include "mbm/types.h"
+#include "tsc.h"
 #include "uncore_pmu.h"
 
 static bool instructed_profile = false;
@@ -165,10 +167,18 @@ static void hrperf_poller_func(void *info) {
   preempt_enable();
 #endif
 
+  struct rmid_info *rmid_info = mbm_get_rmid_info_for_core(entry.cpu_id);
+  entry.tick.total_bw = rmid_info->new_total_bw;
+  entry.tick.local_bw = rmid_info->new_local_bw;
+  entry.tick.occupancy = rmid_info->new_occupancy;
+
   enqueue(this_cpu_ptr(&per_cpu_buffer), entry);
 }
 
 static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
+  mbm_guard_enter();
+  mbm_poll_all_cores();
+
 #if CONCURRENT_INSTRUCTED_PROFILE
   if (instructed_profile) {
     mutex_lock(&instructed_profile_lock);
@@ -264,6 +274,8 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
     mutex_unlock(&instructed_profile_lock);
   }
 #endif
+
+  mbm_guard_exit();
 }
 
 // Single poller thread function for initiating the smp_call_function_many
@@ -426,6 +438,37 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
     return -ENOTTY;
   }
   return 0;
+}
+
+static __always_inline void cleanup(void) {
+  if (logger_thread) {
+    kthread_stop(logger_thread);
+  }
+
+  if (poller_thread) {
+    kthread_stop(poller_thread);
+  }
+
+  if (instructed_profile_wq) {
+    flush_workqueue(instructed_profile_wq);
+    destroy_workqueue(instructed_profile_wq);
+  }
+
+  hrperf_close_log_file(log_file);
+
+#if HRP_LOG_IMC
+  destroy_g_uncore_pmus();
+#endif
+
+  mbm_deinit();
+
+  dev_t dev_num = MKDEV(major_number, 0);
+  device_destroy(dev_class, dev_num);
+  class_destroy(dev_class);
+  cdev_del(&char_dev);
+  unregister_chrdev_region(dev_num, 1);
+
+  printk(KERN_INFO "hrperf: Cleaned up module\n");
 }
 
 static int __init hrp_pmc_init(void) {
@@ -598,39 +641,11 @@ static int __init hrp_pmc_init(void) {
       return -ENOMEM;
     }
   }
-  
 
   return 0;
 }
 
-static void __exit hrp_pmc_exit(void) {
-  if (logger_thread) {
-    kthread_stop(logger_thread);
-  }
-
-  if (poller_thread) {
-    kthread_stop(poller_thread);
-  }
-
-  if (instructed_profile_wq) {
-    flush_workqueue(instructed_profile_wq);
-    destroy_workqueue(instructed_profile_wq);
-  }
-
-  hrperf_close_log_file(log_file);
-
-#if HRP_LOG_IMC
-  destroy_g_uncore_pmus();
-#endif
-
-  dev_t dev_num = MKDEV(major_number, 0);
-  device_destroy(dev_class, dev_num);
-  class_destroy(dev_class);
-  cdev_del(&char_dev);
-  unregister_chrdev_region(dev_num, 1);
-
-  printk(KERN_INFO "hrperf: Cleaned up module\n");
-}
+static void __exit hrp_pmc_exit(void) { cleanup(); }
 
 module_init(hrp_pmc_init);
 module_exit(hrp_pmc_exit);

@@ -3,6 +3,8 @@
 
 #include "mbm/types.h"
 
+extern struct mbm_manager g_mbm_mgr;
+
 typedef enum mbm_counter_error {
     MBM_COUNTER_READ_SUCCESS = 0,
     MBM_COUNTER_READ_ERROR,
@@ -71,6 +73,71 @@ static __always_inline void mbm_read_counters(void* info) {
         data->status = err;
         return;
     }
+}
+
+static __always_inline void mbm_guard_enter(void) {
+    struct rmid_manager *g_rmid_mgr = &g_mbm_mgr.rmid_mgr;
+    spin_lock(&g_rmid_mgr->lock);
+}
+
+static __always_inline void mbm_guard_exit(void) {
+    struct rmid_manager *g_rmid_mgr = &g_mbm_mgr.rmid_mgr;
+    spin_unlock(&g_rmid_mgr->lock);
+}
+
+static __always_inline void mbm_poll_all_cores(void) {
+    struct rmid_manager *g_rmid_mgr = &g_mbm_mgr.rmid_mgr;
+    for (int idx= 0; idx < MAX_CORES; idx++) {
+        struct rmid_info *info = &g_rmid_mgr->rmid_table[idx];
+        if (info->in_use) {
+            mbm_counter_data_t data;
+            data.rmid = info->rmid;
+            mbm_read_counters(&data);
+            if (data.status == MBM_COUNTER_READ_SUCCESS) {
+                // pr_info("Core %d RMID %u: Total BW: %llu, Local BW: %llu, Occupancy: %llu\n",
+                //         info->core_id, data.rmid, data.total_bw, data.local_bw, data.occupancy);
+                
+                info->last_local_bw = info->new_local_bw;
+                info->last_total_bw = info->new_total_bw;
+                info->last_occupancy = info->new_occupancy;
+
+                info->new_local_bw = data.local_bw;
+                info->new_total_bw = data.total_bw;
+                info->new_occupancy = data.occupancy;
+            } else {
+                pr_warn("Core %d RMID %u: Failed to read counters, status: %d\n",
+                        info->core_id, data.rmid, data.status);
+            }
+        }
+        // if (info->in_use) {
+        //     mbm_counter_data_t data;
+        //     data.rmid = info->rmid;
+        //     mbm_read_counters(&data);
+        //     if (data.status == MBM_COUNTER_READ_SUCCESS) {
+        //         pr_info("Core %d RMID %u: Total BW: %llu, Local BW: %llu, Occupancy: %llu\n",
+        //                 cpu, data.rmid, data.total_bw, data.local_bw, data.occupancy);
+        //     } else {
+        //         pr_warn("Core %d RMID %u: Failed to read counters, status: %d\n",
+        //                 cpu, data.rmid, data.status);
+        //     }
+        // }
+    }
+}
+
+static __always_inline struct rmid_info* mbm_get_rmid_info_for_core(u32 core_id) {
+    struct rmid_manager *g_rmid_mgr = &g_mbm_mgr.rmid_mgr;
+    if (core_id >= MAX_CORES) {
+        return NULL;
+    }
+    u8 idx = g_rmid_mgr->core_to_rmid_map[core_id];
+    if (idx >= MAX_CORES) {
+        return NULL;
+    }
+    struct rmid_info *info = &g_rmid_mgr->rmid_table[idx];
+    if (info->in_use && info->core_id == core_id) {
+        return info;
+    }
+    return NULL;
 }
 
 #endif /* _MBM_COUNTER_H_ */

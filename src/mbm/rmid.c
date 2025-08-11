@@ -11,6 +11,7 @@
 #include <linux/smp.h>
 
 #include "mbm/rmid.h"
+#include "mbm/types.h"
 
 /*
  * Clear all RMID associations by setting RMID to 0 on all online cores
@@ -35,7 +36,7 @@ int mbm_rmid_clear_assoc(void) {
 /*
  * Allocate RMID for each core
  */
-int mbm_rmid_allocate_per_core(void) {
+int mbm_rmid_allocate_all_cores(void) {
   u32 cpu, num_cores = 0;
   struct rmid_info *rmid_info;
   struct rmid_manager *g_rmid_mgr = &g_mbm_mgr.rmid_mgr;
@@ -46,6 +47,7 @@ int mbm_rmid_allocate_per_core(void) {
   for (cpu = 0; cpu < MAX_CORES; cpu++) {
     g_rmid_mgr->rmid_table[cpu].in_use = false;
     g_rmid_mgr->rmid_table[cpu].rmid = 0;
+    g_rmid_mgr->core_to_rmid_map[cpu] = MAX_CORES - 1;
   }
 
   /* Assign unique RMID to each online core */
@@ -59,10 +61,12 @@ int mbm_rmid_allocate_per_core(void) {
     rmid_info->rmid = cpu + 1; /* RMID 0 is reserved */
     rmid_info->core_id = cpu;
     rmid_info->in_use = true;
-    rmid_info->last_total_bytes = 0;
-    rmid_info->last_local_bytes = 0;
+    rmid_info->last_total_bw = 0;
+    rmid_info->last_local_bw = 0;
 
     smp_call_function_single(cpu, mbm_set_rmid_smp, &rmid_info->rmid, 1);
+
+    g_rmid_mgr->core_to_rmid_map[cpu] = num_cores;
 
     num_cores++;
   }
@@ -129,6 +133,7 @@ int mbm_rmid_init(void) {
   struct rmid_manager *g_rmid_mgr = &g_mbm_mgr.rmid_mgr;
 
   memset(g_rmid_mgr, 0, sizeof(*g_rmid_mgr));
+
   spin_lock_init(&g_rmid_mgr->lock);
 
   g_rmid_mgr->rmid_table =
@@ -142,8 +147,29 @@ int mbm_rmid_init(void) {
   if (ret) {
     pr_warn("Failed to clear RMID counters: %d\n", ret);
   }
+  
+  ret = mbm_rmid_allocate_all_cores();
+  if (ret) {
+    pr_warn("Failed to allocate RMIDs for all cores: %d\n", ret);
+  }
 
   pr_info("RMID manager initialized, max RMID: %u\n", g_mbm_mgr.max_rmid);
+  // pr_info("Initialized cores: ");
+  // for (int i = 0; i < g_rmid_mgr->num_cores; i++) {
+  //   if (g_rmid_mgr->rmid_table[i].in_use) {
+  //     pr_cont("core_id: %u, rmid: %u; ", g_rmid_mgr->rmid_table[i].core_id, g_rmid_mgr->rmid_table[i].rmid);
+  //   }
+  // }
+  // pr_cont("\n");
+  // 
+
+  // for (int cpu = 0; cpu < MAX_CORES; cpu++) {
+  //   u8 idx = g_rmid_mgr->core_to_rmid_map[cpu];
+  //   struct rmid_info *info = &g_rmid_mgr->rmid_table[idx];
+  //   if (info->in_use) {
+  //     pr_info("Core %d -> RMID %u\n", cpu, info->rmid);
+  //   }
+  // }
   return 0;
 }
 

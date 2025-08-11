@@ -21,7 +21,7 @@
 
 /* Maximum supported values */
 #define MAX_RMID 1023
-#define MAX_CORES 256
+#define MAX_CORES 255
 #define DEFAULT_MAX_RMID 255
 
 #define LOWER_32(val) ((u32)((val) & 0xFFFFFFFFULL))
@@ -32,14 +32,19 @@ struct rmid_info {
   u32 rmid;
   u32 core_id;
   bool in_use;
-  u64 last_total_bytes;
-  u64 last_local_bytes;
+  u64 last_total_bw;
+  u64 last_local_bw;
+  u64 last_occupancy;
+  u64 new_total_bw;
+  u64 new_local_bw;
+  u64 new_occupancy;
 };
 
 /* Global RMID management structure */
 struct rmid_manager {
   u32 num_cores;
   struct rmid_info *rmid_table;
+  u8 core_to_rmid_map[MAX_CORES]; // Map core_id to rmid table index
   spinlock_t lock;
 };
 

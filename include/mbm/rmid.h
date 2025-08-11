@@ -17,7 +17,7 @@ int mbm_rmid_init(void);
 void mbm_rmid_deinit(void);
 
 int mbm_rmid_clear_assoc(void);
-int mbm_rmid_allocate_per_core(void);
+int mbm_rmid_allocate_all_cores(void);
 void mbm_rmid_deallocate_all(void);
 u32 mbm_rmid_get_for_core(u32 core_id);
 
