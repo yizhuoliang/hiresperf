@@ -4,10 +4,10 @@
 #include "mbm/types.h"
 
 typedef enum mbm_counter_error {
-    MBM_COUNTER_SUCCESS = 0,
-    MBM_COUNTER_ERROR,
-    MBM_COUNTER_UNAVAIL,
-    MBM_COUNTER_INVALID,
+    MBM_COUNTER_READ_SUCCESS = 0,
+    MBM_COUNTER_READ_ERROR,
+    MBM_COUNTER_READ_UNAVAIL,
+    MBM_COUNTER_READ_INVALID,
 } mbm_counter_error_t;
 
 typedef struct mbm_counter_data {
@@ -23,7 +23,7 @@ static __always_inline mbm_counter_error_t mbm_read_event(u32 rmid, u32 event, u
     if (event != MBM_EVENT_L3_OCCUP &&
         event != MBM_EVENT_L3_TOTAL_BW &&
         event != MBM_EVENT_L3_LOCAL_BW) {
-        return MBM_COUNTER_INVALID;
+        return MBM_COUNTER_READ_INVALID;
     }
 
     u64 val;
@@ -37,11 +37,11 @@ static __always_inline mbm_counter_error_t mbm_read_event(u32 rmid, u32 event, u
     rdmsrl(MSR_IA32_QM_CTR, val);
 
     if (val & QM_CTR_ERROR_MASK) {
-        return MBM_COUNTER_ERROR;
+        return MBM_COUNTER_READ_ERROR;
     }
 
     if (val & QM_CTR_UNAVAIL_MASK) {
-        return MBM_COUNTER_UNAVAIL;
+        return MBM_COUNTER_READ_UNAVAIL;
     }
 
     return val & QM_CTR_DATA_MASK;
@@ -52,22 +52,22 @@ static __always_inline void mbm_read_counters(void* info) {
     mbm_counter_data_t* data = (mbm_counter_data_t*)info;
     mbm_counter_error_t err;
 
-    data->status = MBM_COUNTER_SUCCESS;
+    data->status = MBM_COUNTER_READ_SUCCESS;
 
     err = mbm_read_event(data->rmid, MBM_EVENT_L3_TOTAL_BW, &data->total_bw);
-    if (err != MBM_COUNTER_SUCCESS) {
+    if (err != MBM_COUNTER_READ_SUCCESS) {
         data->status = err;
         return;
     }
 
     err = mbm_read_event(data->rmid, MBM_EVENT_L3_LOCAL_BW, &data->local_bw);
-    if (err != MBM_COUNTER_SUCCESS) {
+    if (err != MBM_COUNTER_READ_SUCCESS) {
         data->status = err;
         return;
     }
 
     err = mbm_read_event(data->rmid, MBM_EVENT_L3_OCCUP, &data->occupancy);
-    if (err != MBM_COUNTER_SUCCESS) {
+    if (err != MBM_COUNTER_READ_SUCCESS) {
         data->status = err;
         return;
     }
