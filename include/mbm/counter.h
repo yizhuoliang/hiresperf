@@ -96,9 +96,6 @@ static __always_inline void mbm_poll_all_cores(void) {
             data.rmid = info->rmid;
             mbm_read_counters(&data);
             if (data.status == MBM_COUNTER_READ_SUCCESS) {
-                // pr_info("Core %d RMID %u: Total BW: %llu, Local BW: %llu, Occupancy: %llu\n",
-                //         info->core_id, data.rmid, data.total_bw, data.local_bw, data.occupancy);
-                
                 info->last_local_bw = info->new_local_bw;
                 info->last_total_bw = info->new_total_bw;
                 info->last_occupancy = info->new_occupancy;
@@ -111,18 +108,6 @@ static __always_inline void mbm_poll_all_cores(void) {
                         info->core_id, data.rmid, data.status);
             }
         }
-        // if (info->in_use) {
-        //     mbm_counter_data_t data;
-        //     data.rmid = info->rmid;
-        //     mbm_read_counters(&data);
-        //     if (data.status == MBM_COUNTER_READ_SUCCESS) {
-        //         pr_info("Core %d RMID %u: Total BW: %llu, Local BW: %llu, Occupancy: %llu\n",
-        //                 cpu, data.rmid, data.total_bw, data.local_bw, data.occupancy);
-        //     } else {
-        //         pr_warn("Core %d RMID %u: Failed to read counters, status: %d\n",
-        //                 cpu, data.rmid, data.status);
-        //     }
-        // }
     }
 }
 

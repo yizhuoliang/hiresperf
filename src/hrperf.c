@@ -178,7 +178,7 @@ static void hrperf_poller_func(void *info) {
     u64 total_mb = mbm_to_mb(entry.tick.total_bw - rmid_info->last_total_bw);
     u64 occup_mb = mbm_to_mb(entry.tick.occupancy);
 
-    pr_info("CPU %d RMID %u: Total BW: %llu, Local BW: %llu, Occupancy: %llu\n",
+    pr_info("hrperf: CPU %d RMID %u: Total BW: %llu, Local BW: %llu, Occupancy: %llu\n",
             entry.cpu_id, rmid_info->rmid, total_mb, local_mb, occup_mb);
   }
 

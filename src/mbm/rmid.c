@@ -74,7 +74,7 @@ int mbm_rmid_allocate_all_cores(void) {
   g_rmid_mgr->num_cores = num_cores;
   spin_unlock(&g_rmid_mgr->lock);
 
-  pr_info("Allocated RMIDs for %u cores\n", num_cores);
+  pr_info("hrperf: Allocated RMIDs for %u cores\n", num_cores);
   return 0;
 }
 
@@ -98,8 +98,6 @@ void mbm_rmid_deallocate_all(void) {
 
   g_rmid_mgr->num_cores = 0;
   spin_unlock(&g_rmid_mgr->lock);
-
-  pr_info("Deallocated all RMIDs\n");
 }
 
 /*
@@ -153,23 +151,6 @@ int mbm_rmid_init(void) {
     pr_warn("Failed to allocate RMIDs for all cores: %d\n", ret);
   }
 
-  pr_info("RMID manager initialized, max RMID: %u\n", g_mbm_mgr.max_rmid);
-  // pr_info("Initialized cores: ");
-  // for (int i = 0; i < g_rmid_mgr->num_cores; i++) {
-  //   if (g_rmid_mgr->rmid_table[i].in_use) {
-  //     pr_cont("core_id: %u, rmid: %u; ", g_rmid_mgr->rmid_table[i].core_id, g_rmid_mgr->rmid_table[i].rmid);
-  //   }
-  // }
-  // pr_cont("\n");
-  // 
-
-  // for (int cpu = 0; cpu < MAX_CORES; cpu++) {
-  //   u8 idx = g_rmid_mgr->core_to_rmid_map[cpu];
-  //   struct rmid_info *info = &g_rmid_mgr->rmid_table[idx];
-  //   if (info->in_use) {
-  //     pr_info("Core %d -> RMID %u\n", cpu, info->rmid);
-  //   }
-  // }
   return 0;
 }
 
@@ -185,5 +166,5 @@ void mbm_rmid_deinit(void) {
     g_rmid_mgr->rmid_table = NULL;
   }
 
-  pr_info("RMID manager cleaned up\n");
+  pr_info("hrperf: RMID manager cleaned up\n");
 }

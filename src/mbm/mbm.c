@@ -27,16 +27,12 @@ static bool mbm_is_supported(void) {
     return false;
 
   cpuid_count(0x7, 0, &eax, &ebx, &ecx, &edx);
-  pr_info("CPUID 0x7: EAX=%08x EBX=%08x ECX=%08x EDX=%08x\n", eax, ebx, ecx,
-          edx);
   if (!(ebx & (1 << 12))) /* PQM bit */
     return false;
 
-  pr_info("PQM supported, checking L3 CMT/MBM capabilities...\n");
+  pr_info("hrperf: PQM supported, checking L3 CMT/MBM capabilities...\n");
   cpuid_count(0xF, 0, &eax, &ebx, &ecx, &edx);
 
-  pr_info("CPUID 0xF: EAX=%08x EBX=%08x ECX=%08x EDX=%08x\n", eax, ebx, ecx,
-          edx);
   if (!(edx & (1 << 1))) /* L3 Cache Monitoring not supported */
     return false;
 
@@ -50,37 +46,37 @@ void mbm_init_cap(void) {
 
   cpuid_count(0xF, 1, &eax, &ebx, &ecx, &edx);
   if (!(edx & (1 << 0))) {
-    pr_info("L3 CMT not supported.\n");
+    pr_info("hrperf: L3 CMT not supported.\n");
   } else {
     cap->l3_cmt = true;
   }
 
   if (!(edx & (1 << 1))) {
-    pr_info("L3 Total BW not supported.\n");
+    pr_info("hrperf: L3 Total BW not supported.\n");
   } else {
     cap->l3_mbm_total = true;
   }
 
   if (!(edx & (1 << 2))) {
-    pr_info("L3 Local BW not supported.\n");
+    pr_info("hrperf: L3 Local BW not supported.\n");
   } else {
     cap->l3_mbm_local = true;
   }
 
   if (!(eax & (1 << 8))) {
-    pr_info("Overflow bit does not exist.\n");
+    pr_info("hrperf: Overflow bit does not exist.\n");
   } else {
     cap->overflow_bit = true;
   }
 
   if (!(eax & (1 << 9))) {
-    pr_info("Non-CPU L3 CMT not supported.\n");
+    pr_info("hrperf: Non-CPU L3 CMT not supported.\n");
   } else {
     cap->non_cpu_l3_cmt = true;
   }
 
   if (!(eax & (1 << 10))) {
-    pr_info("Non-CPU L3 MBM not supported.\n");
+    pr_info("hrperf: Non-CPU L3 MBM not supported.\n");
   } else {
     cap->non_cpu_l3_mbm = true;
   }
@@ -88,20 +84,19 @@ void mbm_init_cap(void) {
   /* Extract counter width from bits 0-7 of EAX */
   u32 counter_width_offset = eax & 0xFF;
   cap->counter_width = 24 + counter_width_offset;
-  pr_info("Counter width: %u bits\n", cap->counter_width);
 
   g_mbm_mgr.scaling_factor = ebx;
 
   u32 max_rmid = ecx;
   if (max_rmid == 0 || max_rmid > MAX_RMID) {
-    pr_err("Invalid max RMID %u, using default %u\n", max_rmid,
+    pr_err("hrperf: Invalid max RMID %u, using default %u\n", max_rmid,
            DEFAULT_MAX_RMID);
     g_mbm_mgr.max_rmid = DEFAULT_MAX_RMID;
   } else {
     g_mbm_mgr.max_rmid = max_rmid;
   }
 
-  pr_info("MBM capabilities initialized: L3 CMT=%d, Total BW=%d, Local BW=%d, "
+  pr_info("hrperf: MBM capabilities: L3 CMT=%d, Total BW=%d, Local BW=%d, "
           "Overflow Bit=%d, Non-CPU CMT=%d, Non-CPU MBM=%d, Counter Width=%u, "
           "Scaling Factor=%u, Max RMID=%u\n",
           cap->l3_cmt, cap->l3_mbm_total, cap->l3_mbm_local, cap->overflow_bit,
