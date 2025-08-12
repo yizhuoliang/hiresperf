@@ -15,10 +15,14 @@ $(MODULE_NAME)-objs := \
 
 ccflags-y := -I$(PWD)/include -Wall -g
 
-.PHONY: all submake install clean
+.PHONY: all submake install clean workloads
+	
 
-all: submake
+all: submake workloads
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+
+workloads: 
+	$(MAKE) -C ./workloads
 
 submake:
 	# io monitor via bpf is still experimental
@@ -32,5 +36,6 @@ install: all
 clean:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
 	$(MAKE) -C ./src/io clean
+	$(MAKE) -C ./workloads clean
 	rm -rf ./install
 	rm -f .*.cmd *.mod.c Module.symvers modules.order
