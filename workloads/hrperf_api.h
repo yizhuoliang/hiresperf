@@ -100,6 +100,72 @@ static inline u64 hrperf_get_tsc_freq() {
 }
 
 /*
+ * Set the RMID for a specific core.
+*/
+static inline int hrperf_set_rmid(u32 core_id, u32 rmid) {
+    int fd = open_hrperf();
+    rmid_set_info_t rmid_set_args = { .core_id = core_id, .rmid = rmid };
+
+    if (fd < 0) {
+        perror("open");
+        return 1;
+    }
+
+    if (hrperf_ioctl(fd, HRP_PMC_IOC_RDT_SET_RMID_ON_CORE, &rmid_set_args) < 0) {
+        perror("ioctl");
+        close(fd);
+        return 1;
+    }
+
+    close(fd);
+    return 0;
+}
+
+/*
+ * Get RDT Scaling Factor
+ */
+static inline u32 hrperf_get_rdt_scale_factor() {
+    int fd = open_hrperf();
+    u32 scale_factor;
+
+    if (fd < 0) {
+        perror("open");
+        return 0;
+    }
+
+    if (hrperf_ioctl(fd, HRP_PMC_IOC_RDT_SCALE_FACTOR, &scale_factor) < 0) {
+        perror("ioctl");
+        close(fd);
+        return 0;
+    }
+
+    close(fd);
+    return scale_factor;
+}
+
+/*
+ * Get RDT Max RMID
+ */
+static inline u32 hrperf_get_rdt_max_rmid() {
+    int fd = open_hrperf();
+    u32 max_rmid;
+
+    if (fd < 0) {
+        perror("open");
+        return 0;
+    }
+
+    if (hrperf_ioctl(fd, HRP_PMC_IOC_RDT_MAX_RMID, &max_rmid) < 0) {
+        perror("ioctl");
+        close(fd);
+        return 0;
+    }
+
+    close(fd);
+    return max_rmid;
+}
+
+/*
  * Instruct the hiresperf to perform exactly one log operation.
 */
 static inline void hrperf_instruct_log() {
