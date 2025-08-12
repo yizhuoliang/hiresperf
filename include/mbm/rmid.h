@@ -6,8 +6,8 @@
 #ifndef _MBM_RMID_H_
 #define _MBM_RMID_H_
 
+#include "mbm/counter.h"
 #include "mbm/types.h"
-
 
 #define RMID0 0
 
@@ -35,6 +35,13 @@ static __always_inline void mbm_set_rmid(u32 rmid) {
 static __always_inline void mbm_set_rmid_smp(void *info) {
   u32 rmid = *(u32 *)info;
   mbm_set_rmid(rmid);
+}
+
+static __always_inline void mbm_set_rmid_for_core(u32 core_id, u32 rmid) {
+  smp_call_function_single(core_id, mbm_set_rmid_smp, &rmid, 1);
+  struct rmid_info *info = mbm_get_rmid_info_for_core(core_id);
+  info->rmid = rmid;
+  info->in_use = true;
 }
 
 static __always_inline void mbm_reset_rmid(void *info) { mbm_set_rmid(RMID0); }

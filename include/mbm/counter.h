@@ -2,6 +2,7 @@
 #define _MBM_COUNTER_H_
 
 #include "mbm/types.h"
+#include "../src/config.h"
 
 extern struct mbm_manager g_mbm_mgr;
 
@@ -63,11 +64,13 @@ static __always_inline void mbm_read_counters(void* info) {
         return;
     }
 
+#if HRP_RDT_INCLUDE_LOCAL_BW
     err = mbm_read_event(data->rmid, MBM_EVENT_L3_LOCAL_BW, &data->local_bw);
     if (err != MBM_COUNTER_READ_SUCCESS) {
         data->status = err;
         return;
     }
+#endif
 
     err = mbm_read_event(data->rmid, MBM_EVENT_L3_OCCUP, &data->occupancy);
     if (err != MBM_COUNTER_READ_SUCCESS) {

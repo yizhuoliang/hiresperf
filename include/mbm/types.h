@@ -48,7 +48,7 @@ struct rmid_manager {
   spinlock_t lock;
 };
 
-struct mbm_manager {
+typedef struct mbm_manager {
   struct rmid_manager rmid_mgr;
   struct mbm_cap {
     bool l3_cmt;
@@ -61,6 +61,6 @@ struct mbm_manager {
   } cap;
   u32 scaling_factor;
   u32 max_rmid;
-};
+} mbm_manager_t;
 
 #endif /* _MBM_TYPES_H_ */

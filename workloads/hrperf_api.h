@@ -8,6 +8,12 @@
 #include <unistd.h>
 
 #define u64 uint64_t
+#define u32 uint32_t
+
+typedef struct {
+    u32 rmid;       // RMID to set
+    u32 core_id;    // Core ID to set RMID on
+} rmid_set_info_t;
 
 #define HRP_PMC_IOC_MAGIC 'k'
 #define HRP_PMC_IOC_START                   _IO(HRP_PMC_IOC_MAGIC, 1)
@@ -15,7 +21,10 @@
 #define HRP_PMC_IOC_INSTRUCTED_POLL         _IO(HRP_PMC_IOC_MAGIC, 3)
 #define HRP_PMC_IOC_INSTRUCTED_LOG          _IO(HRP_PMC_IOC_MAGIC, 4)
 #define HRP_PMC_IOC_INSTRUCTED_POLL_AND_LOG _IO(HRP_PMC_IOC_MAGIC, 5)
+#define HRP_PMC_IOC_RDT_SET_RMID_ON_CORE    _IOW(HRP_PMC_IOC_MAGIC, 6, rmid_set_info_t)
 #define HRP_PMC_IOC_TSC_FREQ                _IOR(HRP_PMC_IOC_MAGIC, 10, u64)
+#define HRP_PMC_IOC_RDT_SCALE_FACTOR        _IOR(HRP_PMC_IOC_MAGIC, 11, u32)
+#define HRP_PMC_IOC_RDT_MAX_RMID            _IOR(HRP_PMC_IOC_MAGIC, 12, u32)
 
 const char *HRP_PMC_DEVICE_NAME = "/dev/hrperf_device";
 

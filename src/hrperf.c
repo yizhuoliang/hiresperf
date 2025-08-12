@@ -25,6 +25,7 @@
 #include "log.h"
 #include "mbm/counter.h"
 #include "mbm/mbm.h"
+#include "mbm/rmid.h"
 #include "mbm/types.h"
 #include "tsc.h"
 #include "uncore_pmu.h"
@@ -150,6 +151,7 @@ static void hrperf_poller_func(void *info) {
   rdmsrl(MSR_IA32_FIXED_CTR1, entry.tick.cpu_unhalt);
   rdmsrl(MSR_IA32_PMC0, entry.tick.llc_misses);
   rdmsrl(MSR_IA32_PMC1, entry.tick.sw_prefetch);
+
 #if HRP_LOG_IMC
   if (entry.cpu_id == HRP_IMC_DATA_ASSOCIATED_CORE) {
     freeze_all_counters();
@@ -162,33 +164,38 @@ static void hrperf_poller_func(void *info) {
   }
 #endif
 
+#if HRP_USE_RDT
+  mbm_counter_data_t mbm_data;
+  mbm_data.status = MBM_COUNTER_READ_SUCCESS;
+  struct rmid_info *rmid_info = mbm_get_rmid_info_for_core(entry.cpu_id);
+  if (rmid_info == NULL) {
+    pr_err("hrperf: Failed to get RMID info for CPU %d\n",
+            entry.cpu_id);
+  } else {
+    mbm_data.rmid = rmid_info->rmid;
+    mbm_read_counters(&mbm_data);
+    if (mbm_data.status != MBM_COUNTER_READ_SUCCESS) {
+      pr_warn("Core %d RMID %u: Failed to read MBM counters, status: %d\n",
+              entry.cpu_id, mbm_data.rmid, mbm_data.status);
+    } else {
+      entry.tick.total_bw = mbm_data.total_bw;
+#if HRP_RDT_INCLUDE_LOCAL_BW
+      entry.tick.local_bw = mbm_data.local_bw;
+#endif
+      entry.tick.occupancy = mbm_data.occupancy;
+    }
+  }
+#endif
+
 #if HRP_STRICT_POLLING_SYNC
   atomic_inc(&done_cpus);
   preempt_enable();
 #endif
 
-  struct rmid_info *rmid_info = mbm_get_rmid_info_for_core(entry.cpu_id);
-  entry.tick.total_bw = rmid_info->new_total_bw;
-  entry.tick.local_bw = rmid_info->new_local_bw;
-  entry.tick.occupancy = rmid_info->new_occupancy;
-
-  if (entry.cpu_id == 10 && rmid_info->last_local_bw > 0 &&
-      rmid_info->last_total_bw > 0 && rmid_info->last_occupancy > 0) {
-    u64 local_mb = mbm_to_mb(entry.tick.local_bw - rmid_info->last_local_bw);
-    u64 total_mb = mbm_to_mb(entry.tick.total_bw - rmid_info->last_total_bw);
-    u64 occup_mb = mbm_to_mb(entry.tick.occupancy);
-
-    pr_info("hrperf: CPU %d RMID %u: Total BW: %llu, Local BW: %llu, Occupancy: %llu\n",
-            entry.cpu_id, rmid_info->rmid, total_mb, local_mb, occup_mb);
-  }
-
   enqueue(this_cpu_ptr(&per_cpu_buffer), entry);
 }
 
 static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
-  mbm_guard_enter();
-  mbm_poll_all_cores();
-
 #if CONCURRENT_INSTRUCTED_PROFILE
   if (instructed_profile) {
     mutex_lock(&instructed_profile_lock);
@@ -284,8 +291,6 @@ static __always_inline void smp_poll_pmus(hrperf_poller_data_t *poller_data) {
     mutex_unlock(&instructed_profile_lock);
   }
 #endif
-
-  mbm_guard_exit();
 }
 
 // Single poller thread function for initiating the smp_call_function_many
@@ -444,6 +449,33 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
     }
     break;
   }
+#if HRP_USE_RDT
+  case HRP_PMC_IOC_RDT_SCALE_FACTOR: {
+    u32 scale_factor = mbm_get_scaling_factor();
+    if (copy_to_user((u32 *)arg, &scale_factor, sizeof(scale_factor))) {
+      return -EFAULT;
+    }
+    break;
+  }
+  case HRP_PMC_IOC_RDT_MAX_RMID: {
+    u32 max_rmid = mbm_get_max_rmid();
+    if (copy_to_user((u32 *)arg, &max_rmid, sizeof(max_rmid))) {
+      return -EFAULT;
+    }
+    break;
+  }
+  case HRP_PMC_IOC_RDT_SET_RMID_ON_CORE: {
+    rmid_set_info_t rmid_set_args;
+    if (copy_from_user(&rmid_set_args, (rmid_set_info_t *)arg, sizeof(rmid_set_info_t))) {
+      return -EFAULT;
+    }
+    mbm_set_rmid_for_core(rmid_set_args.core_id, rmid_set_args.rmid);
+    u64 ts = __rdtsc();
+    pr_info("hrperf: Set RMID %u on core %u at %llu\n", rmid_set_args.rmid,
+           rmid_set_args.core_id, ts);
+    break;
+  }
+#endif
   default:
     return -ENOTTY;
   }

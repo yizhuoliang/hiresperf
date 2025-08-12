@@ -1,6 +1,8 @@
 #ifndef _HRP_CONFIG_H
 #define _HRP_CONFIG_H
 
+#include <linux/types.h>
+
 /*
     PMC Polling Component Configurations
 */
@@ -13,7 +15,7 @@
 #define HRP_PMC_POLL_INTERVAL_US_HIGH 25
 
 // how many rounds of PMC polling before each logging
-#define HRP_PMC_POLLING_LOGGING_RATIO 35
+#define HRP_PMC_POLLING_LOGGING_RATIO 15
 
 #define HRP_PMC_LOG_PATH "/hrperf_log.bin"
 
@@ -91,6 +93,13 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
 #define HRP_USE_WRITE_EST                                                      \
   1 // set to 1 to use write estimation PMU events, 0 to disable
 
+#define HRP_USE_RDT     1 // set to 1 to use RDT events (MBM, CMT), 0 to disable
+/*
+ * Set to 1 to include local bandwidth in RDT events, 0 to exclude.
+ * If HRP_USE_RDT is set to 0, this flag will be ignored.
+ */ 
+#define HRP_RDT_INCLUDE_LOCAL_BW 0
+
 // Specify which core the IMC event will be stored at.
 // when logging the IMC events, we only log the total reads/writes numbers to
 // one core. other cores will have zero values for IMC events.
@@ -120,6 +129,11 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
     Device Configurations
 */
 
+typedef struct {
+    u32 rmid;       // RMID to set
+    u32 core_id;    // Core ID to set RMID on
+} rmid_set_info_t;
+
 #define HRP_PMC_MAJOR_NUMBER 283
 #define HRP_PMC_DEVICE_NAME "hrperf_device"
 #define HRP_PMC_CLASS_NAME "hrperf_class"
@@ -129,7 +143,10 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
 #define HRP_PMC_IOC_INSTRUCTED_POLL _IO(HRP_PMC_IOC_MAGIC, 3)
 #define HRP_PMC_IOC_INSTRUCTED_LOG _IO(HRP_PMC_IOC_MAGIC, 4)
 #define HRP_PMC_IOC_INSTRUCTED_POLL_AND_LOG _IO(HRP_PMC_IOC_MAGIC, 5)
-#define HRP_PMC_IOC_TSC_FREQ _IOR(HRP_PMC_IOC_MAGIC, 10, u64)
+#define HRP_PMC_IOC_RDT_SET_RMID_ON_CORE    _IOW(HRP_PMC_IOC_MAGIC, 6, rmid_set_info_t)
+#define HRP_PMC_IOC_TSC_FREQ                _IOR(HRP_PMC_IOC_MAGIC, 10, u64)
+#define HRP_PMC_IOC_RDT_SCALE_FACTOR        _IOR(HRP_PMC_IOC_MAGIC, 11, u32)
+#define HRP_PMC_IOC_RDT_MAX_RMID            _IOR(HRP_PMC_IOC_MAGIC, 12, u32)
 
 /*
     BPF Component Configurations, CURRENTLY NOT USED!
