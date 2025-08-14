@@ -37,6 +37,22 @@ static __always_inline void mbm_set_rmid_smp(void *info) {
   mbm_set_rmid(rmid);
 }
 
+/*
+ * mbm_set_rmid_for_core - Set RMID for a specific core.
+ * @core_id: The ID of the core to set the RMID for.
+ * @rmid: The RMID to set.
+ *
+ * This function sets the RMID for the specified core.
+ *
+ * WARNING: This function is NOT thread-safe and is intended for testing
+ * and initialization purposes only. It should not be called concurrently
+ * from multiple threads or in a production environment where race conditions
+ * could lead to data corruption.
+ *
+ * If mbm_get_rmid_info_for_core returns NULL, it indicates a critical
+ * setup error (e.g., invalid core_id or RMID table corruption), and the
+ * system is expected to panic upon dereferencing the NULL pointer.
+ */
 static __always_inline void mbm_set_rmid_for_core(u32 core_id, u32 rmid) {
   smp_call_function_single(core_id, mbm_set_rmid_smp, &rmid, 1);
   struct rmid_info *info = mbm_get_rmid_info_for_core(core_id);
