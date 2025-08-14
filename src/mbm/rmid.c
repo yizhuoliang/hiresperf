@@ -23,10 +23,8 @@ int mbm_rmid_clear_assoc(void) {
 
   spin_lock(&g_rmid_mgr->lock);
 
-  for (rmid = 0; rmid <= g_mbm_mgr.max_rmid; rmid++) {
-    for_each_online_cpu(cpu) {
-      smp_call_function_single(cpu, mbm_reset_rmid, NULL, 1);
-    }
+  for_each_online_cpu(cpu) {
+    smp_call_function_single(cpu, mbm_reset_rmid, NULL, 1);
   }
 
   spin_unlock(&g_rmid_mgr->lock);
