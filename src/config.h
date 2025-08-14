@@ -93,7 +93,7 @@ static const unsigned long hrp_pmc_cpu_selection_mask_bits[HRP_PMC_CPU_SELECTION
 #define HRP_USE_WRITE_EST                                                      \
   1 // set to 1 to use write estimation PMU events, 0 to disable
 
-#define HRP_USE_RDT     1 // set to 1 to use RDT events (MBM, CMT), 0 to disable
+#define HRP_USE_RDT     0 // set to 1 to use RDT events (MBM, CMT), 0 to disable
 /*
  * Set to 1 to include local bandwidth in RDT events, 0 to exclude.
  * If HRP_USE_RDT is set to 0, this flag will be ignored.
