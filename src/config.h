@@ -15,7 +15,7 @@
 #define HRP_PMC_POLL_INTERVAL_US_HIGH 25
 
 // how many rounds of PMC polling before each logging
-#define HRP_PMC_POLLING_LOGGING_RATIO 15
+#define HRP_PMC_POLLING_LOGGING_RATIO 1000
 
 #define HRP_PMC_LOG_PATH "/hrperf_log.bin"
 
