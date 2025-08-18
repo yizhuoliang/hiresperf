@@ -23,6 +23,10 @@
 #include "intel_msr.h"
 #include "intel_pmc.h"
 #include "log.h"
+#include "mbm/counter.h"
+#include "mbm/mbm.h"
+#include "mbm/rmid.h"
+#include "mbm/types.h"
 #include "tsc.h"
 #include "uncore_pmu.h"
 
@@ -147,6 +151,7 @@ static void hrperf_poller_func(void *info) {
   rdmsrl(MSR_IA32_FIXED_CTR1, entry.tick.cpu_unhalt);
   rdmsrl(MSR_IA32_PMC0, entry.tick.llc_misses);
   rdmsrl(MSR_IA32_PMC1, entry.tick.sw_prefetch);
+
 #if HRP_LOG_IMC
   if (entry.cpu_id == HRP_IMC_DATA_ASSOCIATED_CORE) {
     freeze_all_counters();
@@ -156,6 +161,29 @@ static void hrperf_poller_func(void *info) {
   } else {
     entry.tick.imc_reads = 0;
     entry.tick.imc_writes = 0;
+  }
+#endif
+
+#if HRP_USE_RDT
+  mbm_counter_data_t mbm_data;
+  mbm_data.status = MBM_COUNTER_READ_SUCCESS;
+  struct rmid_info *rmid_info = mbm_get_rmid_info_for_core(entry.cpu_id);
+  if (rmid_info == NULL) {
+    pr_err("hrperf: Failed to get RMID info for CPU %d\n",
+            entry.cpu_id);
+  } else {
+    mbm_data.rmid = rmid_info->rmid;
+    mbm_read_counters(&mbm_data);
+    if (mbm_data.status != MBM_COUNTER_READ_SUCCESS) {
+      pr_warn("Core %d RMID %u: Failed to read MBM counters, status: %d\n",
+              entry.cpu_id, mbm_data.rmid, mbm_data.status);
+    } else {
+      entry.tick.total_bw = mbm_data.total_bw;
+#if HRP_RDT_INCLUDE_LOCAL_BW
+      entry.tick.local_bw = mbm_data.local_bw;
+#endif
+      entry.tick.occupancy = mbm_data.occupancy;
+    }
   }
 #endif
 
@@ -421,14 +449,77 @@ static long hrperf_ioctl(struct file *file, unsigned int cmd,
     }
     break;
   }
+#if HRP_USE_RDT
+  case HRP_PMC_IOC_RDT_SCALE_FACTOR: {
+    u32 scale_factor = mbm_get_scaling_factor();
+    if (copy_to_user((u32 *)arg, &scale_factor, sizeof(scale_factor))) {
+      return -EFAULT;
+    }
+    break;
+  }
+  case HRP_PMC_IOC_RDT_MAX_RMID: {
+    u32 max_rmid = mbm_get_max_rmid();
+    if (copy_to_user((u32 *)arg, &max_rmid, sizeof(max_rmid))) {
+      return -EFAULT;
+    }
+    break;
+  }
+  case HRP_PMC_IOC_RDT_SET_RMID_ON_CORE: {
+    rmid_set_info_t rmid_set_args;
+    if (copy_from_user(&rmid_set_args, (rmid_set_info_t *)arg, sizeof(rmid_set_info_t))) {
+      return -EFAULT;
+    }
+    mbm_set_rmid_for_core(rmid_set_args.core_id, rmid_set_args.rmid);
+    u64 ts = __rdtsc();
+    pr_info("hrperf: Set RMID %u on core %u at %llu\n", rmid_set_args.rmid,
+           rmid_set_args.core_id, ts);
+    break;
+  }
+#endif
   default:
     return -ENOTTY;
   }
   return 0;
 }
 
+static __always_inline void cleanup(void) {
+  if (logger_thread) {
+    kthread_stop(logger_thread);
+  }
+
+  if (poller_thread) {
+    kthread_stop(poller_thread);
+  }
+
+  if (instructed_profile_wq) {
+    flush_workqueue(instructed_profile_wq);
+    destroy_workqueue(instructed_profile_wq);
+  }
+
+  hrperf_close_log_file(log_file);
+
+#if HRP_LOG_IMC
+  destroy_g_uncore_pmus();
+#endif
+
+  mbm_deinit();
+
+  dev_t dev_num = MKDEV(major_number, 0);
+  device_destroy(dev_class, dev_num);
+  class_destroy(dev_class);
+  cdev_del(&char_dev);
+  unregister_chrdev_region(dev_num, 1);
+
+  printk(KERN_INFO "hrperf: Cleaned up module\n");
+}
+
 static int __init hrp_pmc_init(void) {
   printk(KERN_INFO "hrperf: Initializing LKM\n");
+
+  if (mbm_init() != 0) {
+    pr_err("hrperf: Failed to initialize Intel MBM.\n");
+    return -EIO;
+  }
 
 #if HRP_USE_TSC
   u64 tsc_cycle = hrp_calibrate_tsc();
@@ -596,34 +687,7 @@ static int __init hrp_pmc_init(void) {
   return 0;
 }
 
-static void __exit hrp_pmc_exit(void) {
-  if (logger_thread) {
-    kthread_stop(logger_thread);
-  }
-
-  if (poller_thread) {
-    kthread_stop(poller_thread);
-  }
-
-  if (instructed_profile_wq) {
-    flush_workqueue(instructed_profile_wq);
-    destroy_workqueue(instructed_profile_wq);
-  }
-
-  hrperf_close_log_file(log_file);
-
-#if HRP_LOG_IMC
-  destroy_g_uncore_pmus();
-#endif
-
-  dev_t dev_num = MKDEV(major_number, 0);
-  device_destroy(dev_class, dev_num);
-  class_destroy(dev_class);
-  cdev_del(&char_dev);
-  unregister_chrdev_region(dev_num, 1);
-
-  printk(KERN_INFO "hrperf: Cleaned up module\n");
-}
+static void __exit hrp_pmc_exit(void) { cleanup(); }
 
 module_init(hrp_pmc_init);
 module_exit(hrp_pmc_exit);

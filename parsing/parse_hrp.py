@@ -18,7 +18,7 @@ def read_hrp_tsc_config(config_path="../src/config.h") -> bool:
                 return int(match.group(1)) != 0
         # If no flag, fall back to original hireserf
         return False
-    
+
 def read_hrp_use_offcore_config(config_path="../src/config.h") -> bool:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(script_dir, "..", "src", "config.h")
@@ -32,31 +32,41 @@ def read_hrp_use_offcore_config(config_path="../src/config.h") -> bool:
         # If no flag, fall back to original hireserf
         return False
 
-def read_logs_to_numpy(file_path: str, use_imc: bool = False) -> np.ndarray:
+
+def read_logs_to_numpy(
+    file_path: str,
+    use_imc: bool = False,
+    use_rdt: bool = False,
+    use_rdt_local_bw: bool = False,
+) -> np.ndarray:
+    # Base fields: cpu_id, timestamp, stall_mem, inst_retire, cpu_unhalt, llc_misses, sw_prefetch
+    fields = [
+        ("cpu_id", np.int32),
+        ("timestamp", np.uint64),
+        ("stall_mem", np.uint64),
+        ("inst_retire", np.uint64),
+        ("cpu_unhalt", np.uint64),
+        ("llc_misses", np.uint64),
+        ("sw_prefetch", np.uint64),
+    ]
+
+    # Add IMC fields if enabled
     if use_imc:
-        # Matches "iQQQQQQQQ" -> int32, uint64, uint64, ...
-        dt = np.dtype([
-            ('cpu_id', np.int32),
-            ('timestamp', np.uint64),
-            ('stall_mem', np.uint64),
-            ('inst_retire', np.uint64),
-            ('cpu_unhalt', np.uint64),
-            ('llc_misses', np.uint64),
-            ('sw_prefetch', np.uint64),
-            ('imc_read', np.uint64),
-            ('imc_write', np.uint64),
-        ])
-    else:
-        # Matches "iQQQQQQ"
-        dt = np.dtype([
-            ('cpu_id', np.int32),
-            ('timestamp', np.uint64),
-            ('stall_mem', np.uint64),
-            ('inst_retire', np.uint64),
-            ('cpu_unhalt', np.uint64),
-            ('llc_misses', np.uint64),
-            ('sw_prefetch', np.uint64),
-        ])
+        fields.extend(
+            [
+                ("imc_read", np.uint64),
+                ("imc_write", np.uint64),
+            ]
+        )
+
+    # Add RDT fields if enabled
+    if use_rdt:
+        fields.append(("total_bw", np.uint64))
+        if use_rdt_local_bw:
+            fields.append(("local_bw", np.uint64))
+        fields.append(("occupancy", np.uint64))
+
+    dt = np.dtype(fields)
 
     print("Reading binary file into NumPy array...")
     try:
@@ -67,12 +77,22 @@ def read_logs_to_numpy(file_path: str, use_imc: bool = False) -> np.ndarray:
         print(f"Error reading file with NumPy: {e}")
         return np.array([])
 
-def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bool, use_imc: bool, use_write_est: bool):
+
+def create_tables(
+    con: duckdb.DuckDBPyConnection,
+    use_raw: bool,
+    use_offcore: bool,
+    use_imc: bool,
+    use_write_est: bool,
+    use_rdt: bool,
+    use_rdt_local_bw: bool,
+):
     """Create database tables if they don't exist."""
     if use_raw:
         if use_offcore:
             if use_write_est:
-                con.execute("""
+                con.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS performance_events (
                         id BIGINT,
                         cpu_id INTEGER,
@@ -90,10 +110,20 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                         offcore_read UBIGINT,
                         write_estimate UBIGINT
                         {}
+                        {}
                     )
-                """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+                """.format(
+                        ", imc_read UBIGINT, imc_write UBIGINT" if use_imc else "",
+                        ", total_bw UBIGINT, {} occupancy UBIGINT".format(
+                            "local_bw UBIGINT, " if use_rdt_local_bw else ""
+                        )
+                        if use_rdt
+                        else "",
+                    )
+                )
             else:
-                con.execute("""
+                con.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS performance_events (
                         id BIGINT,
                         cpu_id INTEGER,
@@ -111,10 +141,20 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                         offcore_read UBIGINT,
                         offcore_write UBIGINT
                         {}
+                        {}
                     )
-                """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+                """.format(
+                        ", imc_read UBIGINT, imc_write UBIGINT" if use_imc else "",
+                        ", total_bw UBIGINT, {} occupancy UBIGINT".format(
+                            "local_bw UBIGINT, " if use_rdt_local_bw else ""
+                        )
+                        if use_rdt
+                        else "",
+                    )
+                )
         else:
-            con.execute("""
+            con.execute(
+                """
                 CREATE TABLE IF NOT EXISTS performance_events (
                     id BIGINT,
                     cpu_id INTEGER,
@@ -132,12 +172,22 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     llc_misses UBIGINT,
                     sw_prefetch UBIGINT
                     {}
+                    {}
                 )
-            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+            """.format(
+                    ", imc_read UBIGINT, imc_write UBIGINT" if use_imc else "",
+                    ", total_bw UBIGINT, {} occupancy UBIGINT".format(
+                        "local_bw UBIGINT, " if use_rdt_local_bw else ""
+                    )
+                    if use_rdt
+                    else "",
+                )
+            )
     else:
         if use_offcore:
             if use_write_est:
-                con.execute("""
+                con.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS performance_events (
                         id BIGINT,
                         cpu_id INTEGER,
@@ -150,10 +200,20 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                         memory_bandwidth_bytes_per_us DOUBLE,
                         time_delta_ns UBIGINT
                         {}
+                        {}
                     )
-                """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+                """.format(
+                        ", imc_read UBIGINT, imc_write UBIGINT" if use_imc else "",
+                        ", total_bw UBIGINT, {} occupancy UBIGINT".format(
+                            "local_bw UBIGINT, " if use_rdt_local_bw else ""
+                        )
+                        if use_rdt
+                        else "",
+                    )
+                )
             else:
-                con.execute("""
+                con.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS performance_events (
                         id BIGINT,
                         cpu_id INTEGER,
@@ -166,10 +226,20 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                         memory_bandwidth_bytes_per_us DOUBLE,
                         time_delta_ns UBIGINT
                         {}
+                        {}
                     )
-                """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
+                """.format(
+                        ", imc_read UBIGINT, imc_write UBIGINT" if use_imc else "",
+                        ", total_bw UBIGINT, {} occupancy UBIGINT".format(
+                            "local_bw UBIGINT, " if use_rdt_local_bw else ""
+                        )
+                        if use_rdt
+                        else "",
+                    )
+                )
         else:
-            con.execute("""
+            con.execute(
+                """
                 CREATE TABLE IF NOT EXISTS performance_events (
                     id BIGINT,
                     cpu_id INTEGER,
@@ -182,9 +252,18 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
                     memory_bandwidth_bytes_per_us DOUBLE,
                     time_delta_ns UBIGINT
                     {}
+                    {}
                 )
-            """.format(", imc_read UBIGINT, imc_write UBIGINT" if use_imc else ""))
-    
+            """.format(
+                    ", imc_read UBIGINT, imc_write UBIGINT" if use_imc else "",
+                    ", total_bw UBIGINT, {} occupancy UBIGINT".format(
+                        "local_bw UBIGINT, " if use_rdt_local_bw else ""
+                    )
+                    if use_rdt
+                    else "",
+                )
+            )
+
     con.execute("""
         CREATE TABLE IF NOT EXISTS node_memory_bandwidth (
             id BIGINT,
@@ -194,12 +273,23 @@ def create_tables(con: duckdb.DuckDBPyConnection, use_raw: bool, use_offcore: bo
         )
     """)
 
-def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool, 
-                            tsc_per_us: float, use_offcore: bool, use_imc: bool,
-                            db_path: str, use_write_est: bool):
+
+def parse_hrperf_log_polars(
+    perf_log_path: str,
+    use_raw: bool,
+    use_tsc_ts: bool,
+    tsc_per_us: float,
+    use_offcore: bool,
+    use_imc: bool,
+    db_path: str,
+    use_write_est: bool,
+    use_rdt: bool,
+    use_rdt_local_bw: bool,
+    rdt_scaling: int,
+):
     print("Reading all log entries into memory...")
-    
-    numpy_data = read_logs_to_numpy(perf_log_path, use_imc)
+
+    numpy_data = read_logs_to_numpy(perf_log_path, use_imc, use_rdt, use_rdt_local_bw)
     if numpy_data.size == 0:
         print("Log file is empty or could not be read.")
         return
@@ -208,8 +298,22 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
     print("Converting to Polars DataFrame...")
     df = pl.from_numpy(numpy_data)
 
+    # Apply RDT scaling factor if RDT is enabled
+    if use_rdt and rdt_scaling is not None:
+        print(f"Applying RDT scaling factor: {rdt_scaling}")
+        df = df.with_columns(
+            [
+                (pl.col("total_bw") * rdt_scaling).alias("total_bw"),
+                (pl.col("occupancy") * rdt_scaling).alias("occupancy"),
+            ]
+        )
+        if use_rdt_local_bw:
+            df = df.with_columns([(pl.col("local_bw") * rdt_scaling).alias("local_bw")])
+
     print(f"Total log entries read: {df.height}")
-    assert df.height == numpy_data.size, "DataFrame height does not match NumPy array size."
+    assert df.height == numpy_data.size, (
+        "DataFrame height does not match NumPy array size."
+    )
 
     # Sort by cpu_id and timestamp to ensure correct order for delta calculations
     df = df.sort(["cpu_id", "timestamp"])
@@ -225,7 +329,9 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
 
     # Calculate time delta
     if use_tsc_ts:
-        time_delta_ns = (pl.col("timestamp") - pl.col("prev_timestamp")) * 1e3 // tsc_per_us
+        time_delta_ns = (
+            (pl.col("timestamp") - pl.col("prev_timestamp")) * 1e3 // tsc_per_us
+        )
     else:
         time_delta_ns = pl.col("timestamp") - pl.col("prev_timestamp")
 
@@ -233,33 +339,52 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
 
     # Filter out invalid time deltas
     df = df.with_columns(
-        time_delta_ns=time_delta_ns,
-        time_delta_us=time_delta_us
-    ).filter(pl.col("time_delta_us") > 0) 
+        time_delta_ns=time_delta_ns, time_delta_us=time_delta_us
+    ).filter(pl.col("time_delta_us") > 0)
+
+    df = df.with_columns(time_delta_ns=pl.col("time_delta_ns").cast(pl.UInt64))
 
     df = df.with_columns(
-        time_delta_ns=pl.col("time_delta_ns").cast(pl.UInt64)
-    )
-
-    df = df.with_columns(
-        stalls_per_us=(pl.col("stall_mem") - pl.col("prev_stall_mem")) / pl.col("time_delta_us"),
-        inst_retire_rate=(pl.col("inst_retire") - pl.col("prev_inst_retire")) / pl.col("time_delta_us"),
-        cpu_usage=(pl.col("cpu_unhalt") - pl.col("prev_cpu_unhalt")) / (tsc_per_us * pl.col("time_delta_us")),
-        llc_misses_rate=(pl.col("llc_misses") - pl.col("prev_llc_misses")) / pl.col("time_delta_us"),
-        sw_prefetch_rate=(pl.col("sw_prefetch") - pl.col("prev_sw_prefetch")) / pl.col("time_delta_us"),
+        stalls_per_us=(pl.col("stall_mem") - pl.col("prev_stall_mem"))
+        / pl.col("time_delta_us"),
+        inst_retire_rate=(pl.col("inst_retire") - pl.col("prev_inst_retire"))
+        / pl.col("time_delta_us"),
+        cpu_usage=(pl.col("cpu_unhalt") - pl.col("prev_cpu_unhalt"))
+        / (tsc_per_us * pl.col("time_delta_us")),
+        llc_misses_rate=(pl.col("llc_misses") - pl.col("prev_llc_misses"))
+        / pl.col("time_delta_us"),
+        sw_prefetch_rate=(pl.col("sw_prefetch") - pl.col("prev_sw_prefetch"))
+        / pl.col("time_delta_us"),
     ).with_columns(
-        memory_bandwidth_bytes_per_us=(pl.col("llc_misses_rate") + pl.col("sw_prefetch_rate")) * 64
+        memory_bandwidth_bytes_per_us=(
+            pl.col("llc_misses_rate") + pl.col("sw_prefetch_rate")
+        )
+        * 64
     )
 
     # Prepare final performance_events table
     final_cols = [
-        "cpu_id", "timestamp_ns", "stalls_per_us", "inst_retire_rate", "cpu_usage",
-        "llc_misses_rate", "sw_prefetch_rate", "memory_bandwidth_bytes_per_us", "time_delta_ns"
+        "cpu_id",
+        "timestamp_ns",
+        "stalls_per_us",
+        "inst_retire_rate",
+        "cpu_usage",
+        "llc_misses_rate",
+        "sw_prefetch_rate",
+        "memory_bandwidth_bytes_per_us",
+        "time_delta_ns",
     ]
     if use_raw:
-        final_cols.extend(["stall_mem", "inst_retire", "cpu_unhalt", "llc_misses", "sw_prefetch"])
+        final_cols.extend(
+            ["stall_mem", "inst_retire", "cpu_unhalt", "llc_misses", "sw_prefetch"]
+        )
         if use_imc:
             final_cols.extend(["imc_read", "imc_write"])
+        if use_rdt:
+            final_cols.append("total_bw")
+            if use_rdt_local_bw:
+                final_cols.append("local_bw")
+            final_cols.append("occupancy")
 
     # Rename timestamp to timestamp_ns for consistency with schema
     perf_df = df.rename({"timestamp": "timestamp_ns"}).select(final_cols)
@@ -268,13 +393,14 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
 
     # Calculate Node Memory Bandwidth
     print("Calculating node-wide memory bandwidth...")
-    node_bw_df = df.group_by("timestamp", maintain_order=True).agg(
-        pl.sum("memory_bandwidth_bytes_per_us").alias("total_memory_bandwidth")
-    ).sort("timestamp")
-    
+    node_bw_df = (
+        df.group_by("timestamp", maintain_order=True)
+        .agg(pl.sum("memory_bandwidth_bytes_per_us").alias("total_memory_bandwidth"))
+        .sort("timestamp")
+    )
+
     node_bw_df = node_bw_df.with_columns(
-        start_time_ns=pl.col("timestamp"),
-        end_time_ns=pl.col("timestamp").shift(-1)
+        start_time_ns=pl.col("timestamp"), end_time_ns=pl.col("timestamp").shift(-1)
     ).drop_nulls()
 
     node_bw_df = node_bw_df.with_columns(
@@ -282,18 +408,24 @@ def parse_hrperf_log_polars(perf_log_path: str, use_raw: bool, use_tsc_ts: bool,
     ).select(["start_time_ns", "end_time_ns", "memory_bandwidth_bytes_per_us"])
     node_bw_df = node_bw_df.with_row_index("id", offset=1)
 
-
     print("Writing data to DuckDB...")
     con = duckdb.connect(database=db_path)
-    create_tables(con, use_raw, use_offcore, use_imc, use_write_est)
+    create_tables(
+        con, use_raw, use_offcore, use_imc, use_write_est, use_rdt, use_rdt_local_bw
+    )
 
     con.execute("INSERT INTO performance_events SELECT * FROM perf_df")
     con.execute("INSERT INTO node_memory_bandwidth SELECT * FROM node_bw_df")
-    
+
     con.close()
 
-    print(f"Processed performance data has been inserted into 'performance_events' table in '{db_path}'.")
-    print(f"Node memory bandwidth data has been inserted into 'node_memory_bandwidth' table in '{db_path}'.")
+    print(
+        f"Processed performance data has been inserted into 'performance_events' table in '{db_path}'."
+    )
+    print(
+        f"Node memory bandwidth data has been inserted into 'node_memory_bandwidth' table in '{db_path}'."
+    )
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -332,6 +464,21 @@ def main():
         help="Indicates if IMC counters are used (input data has two extra imc_read and imc_write fields).",
     )
     parser.add_argument(
+        "--use_rdt",
+        action="store_true",
+        help="Indicates if RDT counters are used (input data has RDT total_bw and occupancy fields).",
+    )
+    parser.add_argument(
+        "--use_rdt_local_bw",
+        action="store_true",
+        help="Indicates if RDT local bandwidth is included (input data has additional local_bw field).",
+    )
+    parser.add_argument(
+        "--rdt_scaling",
+        type=int,
+        help="RDT scaling factor to multiply RDT counters (required when --use_rdt is specified).",
+    )
+    parser.add_argument(
         "--db_path",
         type=str,
         default="analysis.duckdb",
@@ -349,28 +496,45 @@ def main():
     tsc_per_us = args.tsc_freq
     use_offcore = args.use_offcore
     use_imc = args.use_imc
+    use_rdt = args.use_rdt
+    use_rdt_local_bw = args.use_rdt_local_bw
+    rdt_scaling = args.rdt_scaling
     hrp_use_offcore = read_hrp_use_offcore_config()
+
+    # Validate RDT scaling parameter
+    if use_rdt and rdt_scaling is None:
+        print("Error: --rdt_scaling is required when --use_rdt is specified.")
+        sys.exit(1)
+
+    if not use_rdt and rdt_scaling is not None:
+        print(
+            "Warning: --rdt_scaling specified but --use_rdt is not enabled. RDT scaling will be ignored."
+        )
 
     # Warn if TSC timestamps are requested but not enabled in the hiresperf build config file.
     if (not hrp_use_tsc) and use_tsc_ts:
         print(
             "Warning: TSC timestamps are not enabled in the hiresperf config file. Ensure the data is using TSC as the timestamp. Otherwise, timestamp conversion will be incorrect."
         )
-    
+
     # Warn if offcore counters are requested but not enabled in the hiresperf build config file.
     if (not hrp_use_offcore) and use_offcore:
         print(
             "Warning: Offcore counters are not enabled in the hiresperf config file. Ensure the data is using offcore counters. Otherwise, parsing will be incorrect."
         )
-        
+
     if not os.path.isabs(args.db_path):
         args.db_path = os.path.abspath(args.db_path)
 
     print(f"Using TSC timestamps: {use_tsc_ts}, TSC frequency: {tsc_per_us} cycles/us")
-    print(f"Add raw counters: {args.raw_counter}") 
+    print(f"Add raw counters: {args.raw_counter}")
     print(f"Using offcore counters: {use_offcore}")
     print(f"Using imc counters: {use_imc}")
-    
+    print(f"Using RDT counters: {use_rdt}")
+    print(f"Using RDT local bandwidth: {use_rdt_local_bw}")
+    if use_rdt:
+        print(f"RDT scaling factor: {rdt_scaling}")
+
     parse_hrperf_log_polars(
         perf_log_path=args.perf_log_path,
         use_raw=args.raw_counter,
@@ -380,6 +544,9 @@ def main():
         use_imc=args.use_imc,
         db_path=args.db_path,
         use_write_est=args.use_write_est,
+        use_rdt=args.use_rdt,
+        use_rdt_local_bw=args.use_rdt_local_bw,
+        rdt_scaling=rdt_scaling,
     )
 
 if __name__ == "__main__":

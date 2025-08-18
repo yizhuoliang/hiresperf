@@ -17,6 +17,13 @@ typedef struct {
     unsigned long long imc_reads;
     unsigned long long imc_writes;
 #endif
+#if HRP_USE_RDT
+    unsigned long long total_bw;
+#if HRP_RDT_INCLUDE_LOCAL_BW
+    unsigned long long local_bw;
+#endif
+    unsigned long long occupancy;
+#endif
 } HrperfTick;
 
 typedef struct __attribute__((__packed__)) {
